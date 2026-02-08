@@ -3,7 +3,7 @@
 
 ## Cloud Run に Slack Bot (Python) をデプロイする
 
-このリポジトリには、Slack の Events / Slash Commands を受け取る最小の Python サーバが入っています。
+このリポジトリには、Slack の Events / Slash Commands を受け取る `Python/Flask` サーバが入っています。
 
 - **エンドポイント**: `POST /slack/events`
 - **ヘルスチェック**: `GET /health`
