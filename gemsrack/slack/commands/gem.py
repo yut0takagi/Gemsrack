@@ -40,8 +40,6 @@ def register(slack_app) -> None:  # noqa: ANN001
                 respond("モーダル起動に必要な情報が足りません（trigger_id/channel_id）")
                 return
 
-            existing = store.get(team_id=team_id, name=n)
-
             private_metadata = json.dumps(
                 {
                     "team_id": team_id,
@@ -87,7 +85,6 @@ def register(slack_app) -> None:  # noqa: ANN001
                                 "type": "plain_text_input",
                                 "action_id": "value",
                                 "placeholder": {"type": "plain_text", "text": "例: Marpスライドの叩き台を作る"},
-                                "initial_value": (existing.summary if existing else "")[:3000],
                             },
                         },
                         {
@@ -100,7 +97,6 @@ def register(slack_app) -> None:  # noqa: ANN001
                                 "action_id": "value",
                                 "multiline": True,
                                 "placeholder": {"type": "plain_text", "text": "例: あなたは優秀なアシスタントです..."},
-                                "initial_value": (existing.system_prompt if existing else "")[:3000],
                             },
                         },
                         {
@@ -113,7 +109,6 @@ def register(slack_app) -> None:  # noqa: ANN001
                                 "action_id": "value",
                                 "placeholder": {"type": "plain_text", "text": "選択してください"},
                                 "options": input_options,
-                                "initial_option": _initial_option(input_options, existing.input_format if existing else None),
                             },
                         },
                         {
@@ -126,7 +121,6 @@ def register(slack_app) -> None:  # noqa: ANN001
                                 "action_id": "value",
                                 "placeholder": {"type": "plain_text", "text": "選択してください"},
                                 "options": output_options,
-                                "initial_option": _initial_option(output_options, existing.output_format if existing else None),
                             },
                         },
                         {
@@ -139,7 +133,6 @@ def register(slack_app) -> None:  # noqa: ANN001
                                 "action_id": "value",
                                 "multiline": True,
                                 "placeholder": {"type": "plain_text", "text": "今すぐ返したい固定文言があれば"},
-                                "initial_value": (existing.body if existing else "")[:3000],
                             },
                         },
                     ],

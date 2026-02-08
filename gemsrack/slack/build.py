@@ -34,7 +34,8 @@ def build_slack(settings: Settings) -> SlackBuildResult:
     slack_app = App(
         token=settings.slack_bot_token,
         signing_secret=settings.slack_signing_secret,
-        process_before_response=True,
+        # Slack は 3 秒以内に 200 を期待するため、長処理（AI生成等）はレスポンス後に実行する
+        process_before_response=False,
     )
 
     register_all(slack_app)
