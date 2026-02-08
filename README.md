@@ -20,6 +20,7 @@ pip install -r requirements.txt
 
 export SLACK_BOT_TOKEN="xoxb-..."
 export SLACK_SIGNING_SECRET="..."
+export GEMINI_API_KEY="..." # AI Gem を実行する場合
 
 python main.py
 curl -sS localhost:8080/health
@@ -176,3 +177,7 @@ GitHub リポジトリの **Settings → Secrets and variables → Actions** に
 - **ローカル**: 認証が無い場合はメモリにフォールバック（再起動で消えます）
 
 Cloud Run の実行 Service Account に Firestore 権限が必要です（例: `roles/datastore.user`）。
+
+### Gemini API（AI Gem 実行）
+- Cloud Run の環境変数 `GEMINI_API_KEY` を設定してください
+- 省略時はデフォルトで `GEMINI_MODEL=gemini-2.5-flash` を使用します

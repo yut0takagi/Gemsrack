@@ -2,3 +2,4 @@ Flask
 gunicorn
 slack-bolt
 google-cloud-firestore
+requests

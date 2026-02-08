@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 
+from ...ai import build_gemini_client
 from ...gems.store import build_store
 from ...gems.service import handle_gem_command
 from ...gems.store import validate_gem_name
@@ -10,6 +11,7 @@ from ...gems.formats import INPUT_FORMATS, OUTPUT_FORMATS
 
 def register(slack_app) -> None:  # noqa: ANN001
     store = build_store()
+    gemini = build_gemini_client()
 
     @slack_app.command("/gem")
     def gem_command(ack, respond, command, client):  # noqa: ANN001
@@ -145,7 +147,7 @@ def register(slack_app) -> None:  # noqa: ANN001
             )
             return
 
-        result = handle_gem_command(store=store, team_id=team_id, user_id=user_id, text=text)
+        result = handle_gem_command(store=store, team_id=team_id, user_id=user_id, text=text, gemini=gemini)
 
         if result.public:
             respond(result.message, response_type="in_channel")

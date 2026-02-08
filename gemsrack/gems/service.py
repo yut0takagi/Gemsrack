@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import shlex
 
 from .formats import label_for_input, label_for_output
+from .execute import execute_ai_gem
 from .store import GemStore, validate_gem_name
 
 
@@ -25,7 +26,7 @@ def parse_public_flag(tokens: list[str]) -> tuple[list[str], bool]:
     return rest, public
 
 
-def handle_gem_command(*, store: GemStore, team_id: str, user_id: str | None, text: str) -> GemCommandResult:
+def handle_gem_command(*, store: GemStore, team_id: str, user_id: str | None, text: str, gemini=None) -> GemCommandResult:  # noqa: ANN001
     raw = (text or "").strip()
     if not raw:
         return GemCommandResult(
@@ -107,6 +108,7 @@ def handle_gem_command(*, store: GemStore, team_id: str, user_id: str | None, te
         if len(tokens) < 2:
             return GemCommandResult(ok=False, message="使い方: `/gem run <name>`\n\n" + _help())
         name = tokens[1]
+        user_input = " ".join(tokens[2:]).strip()
         try:
             n = validate_gem_name(name)
         except ValueError as e:
@@ -117,11 +119,8 @@ def handle_gem_command(*, store: GemStore, team_id: str, user_id: str | None, te
             return GemCommandResult(ok=False, message=f"Gem **{n}** が見つかりません。`/gem list` で確認できます。")
         if gem.body.strip():
             return GemCommandResult(ok=True, message=gem.body, public=public)
-        return GemCommandResult(
-            ok=True,
-            message=_format_gem_definition(gem),
-            public=False,
-        )
+        ok, msg = execute_ai_gem(gem=gem, user_input=user_input, gemini=gemini)
+        return GemCommandResult(ok=ok, message=msg, public=public if ok else False)
 
     if sub == "list":
         gems = store.list(team_id=team_id, limit=50)
@@ -168,7 +167,9 @@ def handle_gem_command(*, store: GemStore, team_id: str, user_id: str | None, te
         return GemCommandResult(ok=False, message=f"Gem **{n}** が見つかりません。`/gem list` で確認できます。")
     if gem.body.strip():
         return GemCommandResult(ok=True, message=gem.body, public=public)
-    return GemCommandResult(ok=True, message=_format_gem_definition(gem), public=False)
+    user_input = " ".join(tokens[1:]).strip()
+    ok, msg = execute_ai_gem(gem=gem, user_input=user_input, gemini=gemini)
+    return GemCommandResult(ok=ok, message=msg, public=public if ok else False)
 
 
 def _help() -> str:
