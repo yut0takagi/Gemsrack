@@ -5,6 +5,7 @@ import json
 from ...gems.store import build_store
 from ...gems.service import handle_gem_command
 from ...gems.store import validate_gem_name
+from ...gems.formats import INPUT_FORMATS, OUTPUT_FORMATS
 
 
 def register(slack_app) -> None:  # noqa: ANN001
@@ -37,6 +38,8 @@ def register(slack_app) -> None:  # noqa: ANN001
                 respond("モーダル起動に必要な情報が足りません（trigger_id/channel_id）")
                 return
 
+            existing = store.get(team_id=team_id, name=n)
+
             private_metadata = json.dumps(
                 {
                     "team_id": team_id,
@@ -45,6 +48,23 @@ def register(slack_app) -> None:  # noqa: ANN001
                     "channel_id": channel_id,
                 }
             )
+
+            input_options = [
+                {"text": {"type": "plain_text", "text": label}, "value": value}
+                for value, label in INPUT_FORMATS
+            ]
+            output_options = [
+                {"text": {"type": "plain_text", "text": label}, "value": value}
+                for value, label in OUTPUT_FORMATS
+            ]
+
+            def _initial_option(options, value: str | None):  # noqa: ANN001
+                if not value:
+                    return None
+                for opt in options:
+                    if opt.get("value") == value:
+                        return opt
+                return None
 
             client.views_open(
                 trigger_id=trigger_id,
@@ -65,6 +85,7 @@ def register(slack_app) -> None:  # noqa: ANN001
                                 "type": "plain_text_input",
                                 "action_id": "value",
                                 "placeholder": {"type": "plain_text", "text": "例: Marpスライドの叩き台を作る"},
+                                "initial_value": (existing.summary if existing else "")[:3000],
                             },
                         },
                         {
@@ -77,6 +98,7 @@ def register(slack_app) -> None:  # noqa: ANN001
                                 "action_id": "value",
                                 "multiline": True,
                                 "placeholder": {"type": "plain_text", "text": "例: あなたは優秀なアシスタントです..."},
+                                "initial_value": (existing.system_prompt if existing else "")[:3000],
                             },
                         },
                         {
@@ -85,10 +107,11 @@ def register(slack_app) -> None:  # noqa: ANN001
                             "optional": True,
                             "label": {"type": "plain_text", "text": "入力形式"},
                             "element": {
-                                "type": "plain_text_input",
+                                "type": "static_select",
                                 "action_id": "value",
-                                "multiline": True,
-                                "placeholder": {"type": "plain_text", "text": "例: 箇条書き / JSON / フォーム項目..."},
+                                "placeholder": {"type": "plain_text", "text": "選択してください"},
+                                "options": input_options,
+                                "initial_option": _initial_option(input_options, existing.input_format if existing else None),
                             },
                         },
                         {
@@ -97,10 +120,11 @@ def register(slack_app) -> None:  # noqa: ANN001
                             "optional": True,
                             "label": {"type": "plain_text", "text": "出力形式"},
                             "element": {
-                                "type": "plain_text_input",
+                                "type": "static_select",
                                 "action_id": "value",
-                                "multiline": True,
-                                "placeholder": {"type": "plain_text", "text": "例: Marp Markdown / 画像URL / JSON..."},
+                                "placeholder": {"type": "plain_text", "text": "選択してください"},
+                                "options": output_options,
+                                "initial_option": _initial_option(output_options, existing.output_format if existing else None),
                             },
                         },
                         {
@@ -113,6 +137,7 @@ def register(slack_app) -> None:  # noqa: ANN001
                                 "action_id": "value",
                                 "multiline": True,
                                 "placeholder": {"type": "plain_text", "text": "今すぐ返したい固定文言があれば"},
+                                "initial_value": (existing.body if existing else "")[:3000],
                             },
                         },
                     ],
@@ -147,7 +172,12 @@ def register(slack_app) -> None:  # noqa: ANN001
         def _val(block_id: str) -> str:
             b = state.get(block_id) or {}
             a = b.get("value") or {}
-            return (a.get("value") or "").strip()
+            # plain_text_input: {"type":"plain_text_input","value":"..."}
+            if isinstance(a, dict) and "value" in a:
+                return (a.get("value") or "").strip()
+            # static_select: {"type":"static_select","selected_option":{"value":"..."}}
+            selected = (a or {}).get("selected_option") or {}
+            return (selected.get("value") or "").strip()
 
         summary = _val("summary")
         system_prompt = _val("system")

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import shlex
 
+from .formats import label_for_input, label_for_output
 from .store import GemStore, validate_gem_name
 
 
@@ -197,9 +198,9 @@ def _format_gem_definition(gem) -> str:  # noqa: ANN001
     if gem.system_prompt:
         parts.append("*システムプロンプト*:\n```" + gem.system_prompt + "```")
     if gem.input_format:
-        parts.append("*入力形式*:\n```" + gem.input_format + "```")
+        parts.append(f"*入力形式*: {label_for_input(gem.input_format)}\n```{gem.input_format}```")
     if gem.output_format:
-        parts.append("*出力形式*:\n```" + gem.output_format + "```")
+        parts.append(f"*出力形式*: {label_for_output(gem.output_format)}\n```{gem.output_format}```")
     if gem.body:
         parts.append("*（互換）静的テキスト*:\n```" + gem.body + "```")
     parts.append("\n実行ロジック（AI API 呼び出し）はこれから追加できます。")
