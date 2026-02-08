@@ -85,7 +85,7 @@ def execute_ai_image_gem(
         img_bytes, mime = gemini.generate_image(prompt=prompt)
         return True, img_bytes, mime, ""
     except Exception as e:
-        return False, None, "", f"画像生成に失敗しました: `{type(e).__name__}`"
+        return False, None, "", f"画像生成に失敗しました: `{str(e) or type(e).__name__}`"
 
 
 def _build_user_instruction(*, summary: str, input_format: str, output_format: str, prepared_input: str) -> str:

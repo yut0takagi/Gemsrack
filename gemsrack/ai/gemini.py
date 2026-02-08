@@ -11,6 +11,7 @@ import base64
 class GeminiClient:
     api_key: str
     model: str = "gemini-2.5-flash"
+    image_model: str = "gemini-2.5-flash-image-preview"
     thinking_budget: int | None = 0  # 0 で thinking 無効（コスト/レイテンシ優先）
 
     def generate_text(
@@ -66,40 +67,52 @@ class GeminiClient:
         self,
         *,
         prompt: str,
-        size: str = "1024x1024",
-        image_format: str = "png",
+        aspect_ratio: str = "1:1",
     ) -> tuple[bytes, str]:
         """
-        Generate an image from a text prompt using Google Generative Language API (Imagen/Image generation).
+        Generate an image from a text prompt using Gemini image model.
 
         Returns (image_bytes, mime_type).
         """
-        url = "https://generativelanguage.googleapis.com/v1beta/models/imagegeneration:generate"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.image_model}:generateContent"
         headers = {
             "x-goog-api-key": self.api_key,
             "Content-Type": "application/json",
         }
         payload = {
-            "prompt": {"text": prompt},
-            # Common options; backend may accept width/height or size string
-            "numberOfImages": 1,
-            "size": size,
-            "imageFormat": image_format.upper(),
+            "contents": [
+                {
+                    "parts": [
+                        {"text": prompt},
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "responseModalities": ["TEXT", "IMAGE"],
+                "imageConfig": {"aspectRatio": aspect_ratio},
+            },
         }
         r = requests.post(url, headers=headers, json=payload, timeout=90)
-        r.raise_for_status()
+        if not r.ok:
+            detail = (r.text or "").strip().replace("\n", " ")
+            detail = detail[:500]
+            raise RuntimeError(f"Gemini image API error ({r.status_code}): {detail}")
         data = r.json()
 
-        # Expected shape (subject to API evolution): candidates[0].image.imageBytes
         image_b64 = None
-        mime = f"image/{image_format.lower()}"
+        mime = "image/png"
 
         try:
             candidates = data.get("candidates") or []
             if candidates:
-                image = (candidates[0] or {}).get("image") or {}
-                image_b64 = image.get("imageBytes") or image.get("bytes")
-                mime = image.get("mimeType") or mime
+                parts = ((candidates[0] or {}).get("content") or {}).get("parts") or []
+                for part in parts:
+                    inline = (part or {}).get("inlineData") or (part or {}).get("inline_data") or {}
+                    b64 = inline.get("data")
+                    if b64:
+                        image_b64 = b64
+                        mime = inline.get("mimeType") or inline.get("mime_type") or mime
+                        break
         except Exception:
             image_b64 = None
 
@@ -130,6 +143,7 @@ def build_gemini_client() -> GeminiClient | None:
     if not api_key:
         return None
     model = os.environ.get("GEMINI_MODEL") or "gemini-2.5-flash"
+    image_model = os.environ.get("GEMINI_IMAGE_MODEL") or "gemini-2.5-flash-image-preview"
     tb = os.environ.get("GEMINI_THINKING_BUDGET")
     thinking_budget: int | None
     if tb is None or tb == "":
@@ -138,4 +152,9 @@ def build_gemini_client() -> GeminiClient | None:
         thinking_budget = None
     else:
         thinking_budget = int(tb)
-    return GeminiClient(api_key=api_key, model=model, thinking_budget=thinking_budget)
+    return GeminiClient(
+        api_key=api_key,
+        model=model,
+        image_model=image_model,
+        thinking_budget=thinking_budget,
+    )

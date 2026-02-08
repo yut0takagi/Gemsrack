@@ -21,6 +21,7 @@ pip install -r requirements.txt
 export SLACK_BOT_TOKEN="xoxb-..."
 export SLACK_SIGNING_SECRET="..."
 export GEMINI_API_KEY="..." # AI Gem を実行する場合
+export GEMINI_IMAGE_MODEL="gemini-2.5-flash-image-preview" # 画像生成Gemで使用（任意）
 
 python main.py
 curl -sS localhost:8080/health
@@ -193,4 +194,4 @@ Cloud Run の実行 Service Account に Firestore 権限が必要です（例: `
 ### Gemini API（AI Gem 実行）
 - Cloud Run の環境変数 `GEMINI_API_KEY` を設定してください
 - 省略時はデフォルトで `GEMINI_MODEL=gemini-2.5-flash` を使用します
- - 画像生成は Gemini の画像生成APIを使用します（サイズは既定で 1024x1024）
+- 画像生成Gemは `GEMINI_IMAGE_MODEL` を使用します（既定: `gemini-2.5-flash-image-preview`）
