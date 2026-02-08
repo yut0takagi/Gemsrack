@@ -19,7 +19,18 @@ def validate_gem_name(name: str) -> str:
 
 class GemStore(ABC):
     @abstractmethod
-    def upsert(self, *, team_id: str, name: str, body: str, created_by: str | None) -> Gem:
+    def upsert(
+        self,
+        *,
+        team_id: str,
+        name: str,
+        summary: str = "",
+        body: str = "",
+        system_prompt: str = "",
+        input_format: str = "",
+        output_format: str = "",
+        created_by: str | None,
+    ) -> Gem:
         raise NotImplementedError
 
     @abstractmethod
@@ -39,14 +50,31 @@ class InMemoryGemStore(GemStore):
     def __init__(self) -> None:
         self._data: dict[tuple[str, str], Gem] = {}
 
-    def upsert(self, *, team_id: str, name: str, body: str, created_by: str | None) -> Gem:
+    def upsert(
+        self,
+        *,
+        team_id: str,
+        name: str,
+        summary: str = "",
+        body: str = "",
+        system_prompt: str = "",
+        input_format: str = "",
+        output_format: str = "",
+        created_by: str | None,
+    ) -> Gem:
         n = validate_gem_name(name)
+        now = datetime.now(timezone.utc)
         gem = Gem(
             team_id=team_id,
             name=n,
+            summary=summary.strip(),
             body=body.strip(),
+            system_prompt=system_prompt.strip(),
+            input_format=input_format.strip(),
+            output_format=output_format.strip(),
             created_by=created_by,
-            created_at=datetime.now(timezone.utc),
+            created_at=now,
+            updated_at=now,
         )
         self._data[(team_id, n)] = gem
         return gem
@@ -85,20 +113,46 @@ class FirestoreGemStore(GemStore):
             .document(n)
         )
 
-    def upsert(self, *, team_id: str, name: str, body: str, created_by: str | None) -> Gem:
+    def upsert(
+        self,
+        *,
+        team_id: str,
+        name: str,
+        summary: str = "",
+        body: str = "",
+        system_prompt: str = "",
+        input_format: str = "",
+        output_format: str = "",
+        created_by: str | None,
+    ) -> Gem:
         ref = self._doc_ref(team_id=team_id, name=name)
         n = validate_gem_name(name)
         now = datetime.now(timezone.utc)
         payload = {
             "team_id": team_id,
             "name": n,
+            "summary": summary.strip(),
             "body": body.strip(),
+            "system_prompt": system_prompt.strip(),
+            "input_format": input_format.strip(),
+            "output_format": output_format.strip(),
             "created_by": created_by,
             "created_at": now,
             "updated_at": now,
         }
         ref.set(payload, merge=True)
-        return Gem(team_id=team_id, name=n, body=payload["body"], created_by=created_by, created_at=now)
+        return Gem(
+            team_id=team_id,
+            name=n,
+            summary=payload["summary"],
+            body=payload["body"],
+            system_prompt=payload["system_prompt"],
+            input_format=payload["input_format"],
+            output_format=payload["output_format"],
+            created_by=created_by,
+            created_at=now,
+            updated_at=now,
+        )
 
     def get(self, *, team_id: str, name: str) -> Gem | None:
         ref = self._doc_ref(team_id=team_id, name=name)
@@ -109,12 +163,20 @@ class FirestoreGemStore(GemStore):
         created_at = d.get("created_at")
         if not isinstance(created_at, datetime):
             created_at = datetime.now(timezone.utc)
+        updated_at = d.get("updated_at")
+        if not isinstance(updated_at, datetime):
+            updated_at = created_at
         return Gem(
             team_id=team_id,
             name=d.get("name") or validate_gem_name(name),
+            summary=d.get("summary") or "",
             body=d.get("body") or "",
+            system_prompt=d.get("system_prompt") or "",
+            input_format=d.get("input_format") or "",
+            output_format=d.get("output_format") or "",
             created_by=d.get("created_by"),
             created_at=created_at,
+            updated_at=updated_at,
         )
 
     def delete(self, *, team_id: str, name: str) -> bool:
@@ -135,13 +197,21 @@ class FirestoreGemStore(GemStore):
             created_at = d.get("created_at")
             if not isinstance(created_at, datetime):
                 created_at = datetime.now(timezone.utc)
+            updated_at = d.get("updated_at")
+            if not isinstance(updated_at, datetime):
+                updated_at = created_at
             out.append(
                 Gem(
                     team_id=team_id,
                     name=str(d.get("name") or s.id),
+                    summary=str(d.get("summary") or ""),
                     body=str(d.get("body") or ""),
+                    system_prompt=str(d.get("system_prompt") or ""),
+                    input_format=str(d.get("input_format") or ""),
+                    output_format=str(d.get("output_format") or ""),
                     created_by=d.get("created_by"),
                     created_at=created_at,
+                    updated_at=updated_at,
                 )
             )
         return out

@@ -157,8 +157,11 @@ GitHub リポジトリの **Settings → Secrets and variables → Actions** に
 
 `/gem` コマンドで “Gem（小さな自動化）” を作成・実行できます。
 
-- **作成/更新**: `/gem create <name> <body...>`
+- **作成/更新（互換: 静的テキスト）**: `/gem create <name> <body...>`
+- **作成/更新（AI Gem定義: フォーム）**: `/gem create <name>`（モーダルが開きます）
+- **作成/更新（AI Gem定義: フラグ）**: `/gem create <name> --summary "..." --system "..." --input "..." --output "..."`
 - **実行**: `/gem <name>` または `/gem run <name>`
+- **詳細表示**: `/gem show <name>`
 - **一覧**: `/gem list`
 - **削除**: `/gem delete <name>`
 - **公開実行**: `/gem <name> --public`（結果をチャンネルに投稿）
@@ -166,6 +169,7 @@ GitHub リポジトリの **Settings → Secrets and variables → Actions** に
 例:
 - `/gem create hello おはようございます！`
 - `/gem hello`
+- `/gem create slide`（モーダルで「概要/システムプロンプト/入力形式/出力形式」を保存）
 
 ### 保存先（永続化）
 - **Cloud Run**: Firestore（推奨 / 自動で使います）
