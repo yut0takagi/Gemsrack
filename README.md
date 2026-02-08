@@ -48,7 +48,8 @@ curl -sS localhost:8080/health
 Slack の App 管理画面で以下を設定します。
 
 - **OAuth & Permissions**
-  - Bot Token Scopes に最低限 `commands` と `chat:write` を付与（必要に応じて追加）
+  - Bot Token Scopes に最低限 `commands` と `chat:write` を付与
+  - 画像生成Gemを使う場合は `files:write` と `im:write` も付与（DMに画像を送るため）
   - Install to Workspace を実行して `SLACK_BOT_TOKEN` を取得
 - **Basic Information**
   - App Credentials の `Signing Secret` を `SLACK_SIGNING_SECRET` として使用
@@ -175,6 +176,14 @@ GitHub リポジトリの **Settings → Secrets and variables → Actions** に
 - `/gem hello`
 - `/gem create slide`（モーダルで「概要/システムプロンプト/入力形式/出力形式」を保存）
 
+### 画像生成 Gem（新機能）
+- 出力形式に `image_url` を選ぶと、画像生成Gemとして実行できます。
+- 実行時の挙動:
+  - `--public` 指定あり: 生成画像を Slash コマンドのチャンネルへアップロード
+  - `--public` 指定なし: Bot からユーザーのDMへ画像を送信（`im:write` が必要）
+- 必要スコープ: `files:write`（必須）と `im:write`（DM送信時）
+- 補足: 生成には Gemini 画像生成APIを使用します（環境変数 `GEMINI_API_KEY` 必須）
+
 ### 保存先（永続化）
 - **Cloud Run**: Firestore（推奨 / 自動で使います）
 - **ローカル**: 認証が無い場合はメモリにフォールバック（再起動で消えます）
@@ -184,3 +193,4 @@ Cloud Run の実行 Service Account に Firestore 権限が必要です（例: `
 ### Gemini API（AI Gem 実行）
 - Cloud Run の環境変数 `GEMINI_API_KEY` を設定してください
 - 省略時はデフォルトで `GEMINI_MODEL=gemini-2.5-flash` を使用します
+ - 画像生成は Gemini の画像生成APIを使用します（サイズは既定で 1024x1024）

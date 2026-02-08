@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import shlex
 
 from .formats import label_for_input, label_for_output
-from .execute import execute_ai_gem
+from .execute import execute_ai_gem, execute_ai_image_gem
 from .store import GemStore, validate_gem_name
 
 
@@ -26,7 +26,16 @@ def parse_public_flag(tokens: list[str]) -> tuple[list[str], bool]:
     return rest, public
 
 
-def handle_gem_command(*, store: GemStore, team_id: str, user_id: str | None, text: str, gemini=None) -> GemCommandResult:  # noqa: ANN001
+def handle_gem_command(
+    *,
+    store: GemStore,
+    team_id: str,
+    user_id: str | None,
+    text: str,
+    gemini=None,
+    slack_client=None,  # Slack WebClient（画像生成時のアップロードに使用。任意）
+    channel_id: str | None = None,
+) -> GemCommandResult:  # noqa: ANN001
     raw = (text or "").strip()
     if not raw:
         return GemCommandResult(
@@ -119,6 +128,54 @@ def handle_gem_command(*, store: GemStore, team_id: str, user_id: str | None, te
             return GemCommandResult(ok=False, message=f"Gem **{n}** が見つかりません。`/gem list` で確認できます。")
         if gem.body.strip():
             return GemCommandResult(ok=True, message=gem.body, public=public)
+        # 画像生成 Gem の特例ハンドリング
+        if (gem.output_format or "") == "image_url":
+            ok, img_bytes, mime, msg = execute_ai_image_gem(gem=gem, user_input=user_input, gemini=gemini)
+            if not ok or not img_bytes:
+                return GemCommandResult(ok=False, message=msg or "画像生成に失敗しました。")
+
+            # Slack にアップロード（公開: チャンネル / 非公開: DM）
+            if slack_client is None:
+                return GemCommandResult(ok=True, message="画像を生成しましたが、Slack へのアップロード権限がありません（管理者に `files:write` 追加を依頼してください）。")
+            try:
+                import io
+
+                filename = f"{n}.png" if (mime or "").endswith("png") else f"{n}.jpg"
+                target_channel = None
+                if public and channel_id:
+                    target_channel = channel_id
+                elif user_id:
+                    # DM チャンネルを開いて個別送信
+                    opened = slack_client.conversations_open(users=user_id)
+                    target_channel = (opened.get("channel") or {}).get("id")
+                if not target_channel:
+                    # 最後の手段として respond チャンネル（あれば）
+                    target_channel = channel_id
+
+                if hasattr(slack_client, "files_upload_v2"):
+                    slack_client.files_upload_v2(
+                        channel=target_channel,
+                        filename=filename,
+                        file=io.BytesIO(img_bytes),
+                        title=f"Gem: {n}",
+                    )
+                else:  # 旧API互換
+                    slack_client.files_upload(
+                        channels=target_channel,
+                        filename=filename,
+                        file=io.BytesIO(img_bytes),
+                        title=f"Gem: {n}",
+                    )
+                if public:
+                    return GemCommandResult(ok=True, message=f"Gem `{n}` の画像をチャンネルにアップロードしました。", public=True)
+                return GemCommandResult(ok=True, message=f"Gem `{n}` の画像をDMに送信しました。", public=False)
+            except Exception as e:
+                hint = ""
+                err = type(e).__name__
+                if "missing_scope" in str(e) or "not_allowed_token_type" in str(e):
+                    hint = "\n必要スコープ: `files:write`（DM送信には `im:write`）。追加後、アプリを再インストール。"
+                return GemCommandResult(ok=False, message=f"画像のアップロードに失敗しました: `{err}`{hint}")
+
         ok, msg = execute_ai_gem(gem=gem, user_input=user_input, gemini=gemini)
         return GemCommandResult(ok=ok, message=msg, public=public if ok else False)
 
@@ -168,6 +225,50 @@ def handle_gem_command(*, store: GemStore, team_id: str, user_id: str | None, te
     if gem.body.strip():
         return GemCommandResult(ok=True, message=gem.body, public=public)
     user_input = " ".join(tokens[1:]).strip()
+    # 画像生成 Gem の特例ハンドリング（`/gem <name>` 形式）
+    if (gem.output_format or "") == "image_url":
+        ok, img_bytes, mime, msg = execute_ai_image_gem(gem=gem, user_input=user_input, gemini=gemini)
+        if not ok or not img_bytes:
+            return GemCommandResult(ok=False, message=msg or "画像生成に失敗しました。")
+        if slack_client is None:
+            return GemCommandResult(ok=True, message="画像を生成しましたが、Slack へのアップロード権限がありません（管理者に `files:write` 追加を依頼してください）。")
+        try:
+            import io
+
+            filename = f"{n}.png" if (mime or "").endswith("png") else f"{n}.jpg"
+            target_channel = None
+            if public and channel_id:
+                target_channel = channel_id
+            elif user_id:
+                opened = slack_client.conversations_open(users=user_id)
+                target_channel = (opened.get("channel") or {}).get("id")
+            if not target_channel:
+                target_channel = channel_id
+
+            if hasattr(slack_client, "files_upload_v2"):
+                slack_client.files_upload_v2(
+                    channel=target_channel,
+                    filename=filename,
+                    file=io.BytesIO(img_bytes),
+                    title=f"Gem: {n}",
+                )
+            else:
+                slack_client.files_upload(
+                    channels=target_channel,
+                    filename=filename,
+                    file=io.BytesIO(img_bytes),
+                    title=f"Gem: {n}",
+                )
+            if public:
+                return GemCommandResult(ok=True, message=f"Gem `{n}` の画像をチャンネルにアップロードしました。", public=True)
+            return GemCommandResult(ok=True, message=f"Gem `{n}` の画像をDMに送信しました。", public=False)
+        except Exception as e:
+            hint = ""
+            err = type(e).__name__
+            if "missing_scope" in str(e) or "not_allowed_token_type" in str(e):
+                hint = "\n必要スコープ: `files:write`（DM送信には `im:write`）。追加後、アプリを再インストール。"
+            return GemCommandResult(ok=False, message=f"画像のアップロードに失敗しました: `{err}`{hint}")
+
     ok, msg = execute_ai_gem(gem=gem, user_input=user_input, gemini=gemini)
     return GemCommandResult(ok=ok, message=msg, public=public if ok else False)
 
@@ -206,4 +307,3 @@ def _format_gem_definition(gem) -> str:  # noqa: ANN001
         parts.append("*（互換）静的テキスト*:\n```" + gem.body + "```")
     parts.append("\n実行ロジック（AI API 呼び出し）はこれから追加できます。")
     return "\n".join(parts)
-

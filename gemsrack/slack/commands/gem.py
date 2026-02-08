@@ -168,7 +168,15 @@ def register(slack_app) -> None:  # noqa: ANN001
             return
 
         try:
-            result = handle_gem_command(store=store, team_id=team_id, user_id=user_id, text=text, gemini=gemini)
+            result = handle_gem_command(
+                store=store,
+                team_id=team_id,
+                user_id=user_id,
+                text=text,
+                gemini=gemini,
+                slack_client=client,
+                channel_id=command.get("channel_id"),
+            )
         except Exception as e:
             print(f"[gem] command error: {type(e).__name__} {e}")
             respond(f"処理中にエラーが発生しました: `{type(e).__name__}`")
@@ -248,4 +256,3 @@ def register(slack_app) -> None:  # noqa: ANN001
                         pass
 
         threading.Thread(target=_save_and_notify, daemon=True).start()
-

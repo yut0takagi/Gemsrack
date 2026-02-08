@@ -51,6 +51,43 @@ def execute_ai_gem(
     return ok, formatted
 
 
+def execute_ai_image_gem(
+    *,
+    gem,
+    user_input: str,
+    gemini: GeminiClient | None,
+) -> tuple[bool, bytes | None, str, str]:
+    """
+    Generate an image for the Gem. Returns (ok, image_bytes|None, mime, message_if_error_or_alt).
+    """
+    if gemini is None:
+        return False, None, "", "Gemini API が未設定です。Cloud Run の環境変数 `GEMINI_API_KEY` を設定してください。"
+
+    # 入力の前処理（形式が指定されている場合のみ）
+    prepared_input, err = _prepare_input(gem.input_format, user_input)
+    if err:
+        return False, None, "", err
+
+    # 画像生成用の簡潔なプロンプトを組み立てる
+    # （system/summary を含めつつ、最終的に 1 文で表現）
+    parts: list[str] = []
+    if gem.summary:
+        parts.append(gem.summary.strip())
+    if gem.system_prompt:
+        parts.append(gem.system_prompt.strip())
+    if prepared_input:
+        parts.append(prepared_input.strip())
+    prompt = "\n\n".join([p for p in parts if p])
+    if not prompt:
+        prompt = "Generate a high-quality image."
+
+    try:
+        img_bytes, mime = gemini.generate_image(prompt=prompt)
+        return True, img_bytes, mime, ""
+    except Exception as e:
+        return False, None, "", f"画像生成に失敗しました: `{type(e).__name__}`"
+
+
 def _build_user_instruction(*, summary: str, input_format: str, output_format: str, prepared_input: str) -> str:
     lines: list[str] = []
     if summary:
@@ -126,4 +163,3 @@ def _truncate(text: str, limit: int = 3500) -> str:
     if len(text) <= limit:
         return text
     return text[:limit] + "\n\n...(truncated)"
-

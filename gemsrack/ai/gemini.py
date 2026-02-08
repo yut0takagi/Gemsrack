@@ -4,6 +4,7 @@ import os
 from dataclasses import dataclass
 
 import requests
+import base64
 
 
 @dataclass(frozen=True)
@@ -61,6 +62,68 @@ class GeminiClient:
                 texts.append(t)
         return "".join(texts).strip()
 
+    def generate_image(
+        self,
+        *,
+        prompt: str,
+        size: str = "1024x1024",
+        image_format: str = "png",
+    ) -> tuple[bytes, str]:
+        """
+        Generate an image from a text prompt using Google Generative Language API (Imagen/Image generation).
+
+        Returns (image_bytes, mime_type).
+        """
+        url = "https://generativelanguage.googleapis.com/v1beta/models/imagegeneration:generate"
+        headers = {
+            "x-goog-api-key": self.api_key,
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "prompt": {"text": prompt},
+            # Common options; backend may accept width/height or size string
+            "numberOfImages": 1,
+            "size": size,
+            "imageFormat": image_format.upper(),
+        }
+        r = requests.post(url, headers=headers, json=payload, timeout=90)
+        r.raise_for_status()
+        data = r.json()
+
+        # Expected shape (subject to API evolution): candidates[0].image.imageBytes
+        image_b64 = None
+        mime = f"image/{image_format.lower()}"
+
+        try:
+            candidates = data.get("candidates") or []
+            if candidates:
+                image = (candidates[0] or {}).get("image") or {}
+                image_b64 = image.get("imageBytes") or image.get("bytes")
+                mime = image.get("mimeType") or mime
+        except Exception:
+            image_b64 = None
+
+        # Fallbacks for alternative wire formats seen in samples
+        if not image_b64:
+            try:
+                images = data.get("generatedImages") or []
+                if images:
+                    image = (images[0] or {}).get("image") or {}
+                    image_b64 = image.get("base64") or image.get("imageBytes")
+                    mime = image.get("mimeType") or mime
+            except Exception:
+                image_b64 = None
+
+        if not image_b64:
+            raise RuntimeError(f"Gemini image response missing bytes: {data}")
+
+        try:
+            raw = base64.b64decode(image_b64)
+        except Exception as e:
+            raise RuntimeError(f"Failed to decode image bytes: {type(e).__name__}") from e
+
+        return raw, mime
+
 
 def build_gemini_client() -> GeminiClient | None:
     api_key = os.environ.get("GEMINI_API_KEY")
@@ -76,4 +139,3 @@ def build_gemini_client() -> GeminiClient | None:
     else:
         thinking_budget = int(tb)
     return GeminiClient(api_key=api_key, model=model, thinking_budget=thinking_budget)
-
