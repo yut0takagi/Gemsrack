@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import threading
 
 from slack_sdk.errors import SlackApiError, SlackRequestError
 
@@ -180,7 +181,9 @@ def register(slack_app) -> None:  # noqa: ANN001
 
     @slack_app.view("gem_create_modal")
     def gem_create_modal(ack, body, view, client):  # noqa: ANN001
-        ack()
+        # View submission は 3 秒以内に ack が必須。
+        # Cloud Run の cold start / Firestore 遅延があってもタイムアウトしないよう、先に modal を閉じる。
+        ack(response_action="clear")
 
         meta = {}
         try:
@@ -211,21 +214,38 @@ def register(slack_app) -> None:  # noqa: ANN001
         output_format = _val("output_format")
         body_text = _val("body")
 
-        store.upsert(
-            team_id=team_id,
-            name=name,
-            summary=summary,
-            body=body_text,
-            system_prompt=system_prompt,
-            input_format=input_format,
-            output_format=output_format,
-            created_by=user_id,
-        )
+        def _save_and_notify() -> None:
+            try:
+                # ここでは遅くても良い（Slackへの ack は完了済み）
+                store.upsert(
+                    team_id=team_id,
+                    name=name,
+                    summary=summary,
+                    body=body_text,
+                    system_prompt=system_prompt,
+                    input_format=input_format,
+                    output_format=output_format,
+                    created_by=user_id,
+                )
 
-        if channel_id and user_id:
-            client.chat_postEphemeral(
-                channel=channel_id,
-                user=user_id,
-                text=f"Gem `{name}` を保存しました。詳細: `/gem show {name}`",
-            )
+                if channel_id and user_id:
+                    client.chat_postEphemeral(
+                        channel=channel_id,
+                        user=user_id,
+                        text=f"Gem `{name}` を保存しました。詳細: `/gem show {name}`",
+                    )
+            except Exception as e:
+                print(f"[gem] modal save failed: {type(e).__name__} {e}")
+                # 失敗した場合もユーザーに通知（ベストエフォート）
+                if channel_id and user_id:
+                    try:
+                        client.chat_postEphemeral(
+                            channel=channel_id,
+                            user=user_id,
+                            text=f"Gem `{name}` の保存に失敗しました: `{type(e).__name__}`",
+                        )
+                    except Exception:
+                        pass
+
+        threading.Thread(target=_save_and_notify, daemon=True).start()
 

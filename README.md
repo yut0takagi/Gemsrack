@@ -49,6 +49,7 @@ Slack の App 管理画面で以下を設定します。
 
 - **OAuth & Permissions**
   - Bot Token Scopes に最低限 `commands` と `chat:write` を付与（必要に応じて追加）
+  - モーダル（`/gem create <name>`）を使う場合は `views:write` も付与
   - Install to Workspace を実行して `SLACK_BOT_TOKEN` を取得
 - **Basic Information**
   - App Credentials の `Signing Secret` を `SLACK_SIGNING_SECRET` として使用
@@ -56,6 +57,9 @@ Slack の App 管理画面で以下を設定します。
   - Enable Events を ON
   - Request URL を `https://<CloudRunのURL>/slack/events` に設定
   - Subscribe to bot events に例として `app_mention` を追加（`gemsrack/slack/events/app_mention.py`）
+- **Interactivity & Shortcuts**
+  - Interactivity を ON
+  - Request URL を `https://<CloudRunのURL>/slack/events` に設定（モーダルの Save などで必須）
 - **Slash Commands**（例: `/hello`）
   - Command を `/hello`
   - Request URL を `https://<CloudRunのURL>/slack/events` に設定
