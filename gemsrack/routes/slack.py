@@ -5,6 +5,7 @@ from flask import Blueprint, Response, current_app, request
 slack_bp = Blueprint("slack", __name__)
 
 
+@slack_bp.post("/")
 @slack_bp.post("/slack/events")
 def slack_events() -> Response:
     handler = current_app.extensions.get("slack_handler")

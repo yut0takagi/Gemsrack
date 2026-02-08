@@ -54,14 +54,14 @@ Slack の App 管理画面で以下を設定します。
   - App Credentials の `Signing Secret` を `SLACK_SIGNING_SECRET` として使用
 - **Event Subscriptions**
   - Enable Events を ON
-  - Request URL を `https://<CloudRunのURL>/slack/events` に設定
+  - Request URL を `https://<CloudRunのURL>/slack/events` に設定（末尾のパスまで必須）
   - Subscribe to bot events に例として `app_mention` を追加（`gemsrack/slack/events/app_mention.py`）
 - **Interactivity & Shortcuts**
   - Interactivity を ON
-  - Request URL を `https://<CloudRunのURL>/slack/events` に設定（モーダルの Save などで必須）
+  - Request URL を `https://<CloudRunのURL>/slack/events` に設定（末尾のパスまで必須。モーダルの Save などで必須）
 - **Slash Commands**（例: `/hello`）
   - Command を `/hello`
-  - Request URL を `https://<CloudRunのURL>/slack/events` に設定
+  - Request URL を `https://<CloudRunのURL>/slack/events` に設定（末尾のパスまで必須）
   - 追加で `/gem` も作成（Request URL は同じ）
 
 ### Cloud Run へデプロイ（例: Artifact Registry を使わない最短）
