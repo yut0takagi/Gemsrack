@@ -1,0 +1,158 @@
+from __future__ import annotations
+
+import os
+import re
+from abc import ABC, abstractmethod
+from datetime import datetime, timezone
+
+from .models import Gem
+
+_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
+
+
+def validate_gem_name(name: str) -> str:
+    n = name.strip().lower()
+    if not _NAME_RE.match(n):
+        raise ValueError("Gem名は `a-z 0-9 _ -` で1〜32文字（先頭は英数字）にしてください")
+    return n
+
+
+class GemStore(ABC):
+    @abstractmethod
+    def upsert(self, *, team_id: str, name: str, body: str, created_by: str | None) -> Gem:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get(self, *, team_id: str, name: str) -> Gem | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete(self, *, team_id: str, name: str) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list(self, *, team_id: str, limit: int = 50) -> list[Gem]:
+        raise NotImplementedError
+
+
+class InMemoryGemStore(GemStore):
+    def __init__(self) -> None:
+        self._data: dict[tuple[str, str], Gem] = {}
+
+    def upsert(self, *, team_id: str, name: str, body: str, created_by: str | None) -> Gem:
+        n = validate_gem_name(name)
+        gem = Gem(
+            team_id=team_id,
+            name=n,
+            body=body.strip(),
+            created_by=created_by,
+            created_at=datetime.now(timezone.utc),
+        )
+        self._data[(team_id, n)] = gem
+        return gem
+
+    def get(self, *, team_id: str, name: str) -> Gem | None:
+        n = validate_gem_name(name)
+        return self._data.get((team_id, n))
+
+    def delete(self, *, team_id: str, name: str) -> bool:
+        n = validate_gem_name(name)
+        return self._data.pop((team_id, n), None) is not None
+
+    def list(self, *, team_id: str, limit: int = 50) -> list[Gem]:
+        gems = [g for (tid, _), g in self._data.items() if tid == team_id]
+        gems.sort(key=lambda g: g.created_at, reverse=True)
+        return gems[: max(1, min(limit, 200))]
+
+
+class FirestoreGemStore(GemStore):
+    def __init__(self, *, project_id: str | None = None) -> None:
+        self._project_id = project_id or os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCP_PROJECT")
+        if not self._project_id:
+            raise RuntimeError("GOOGLE_CLOUD_PROJECT が見つかりません（Cloud Run では自動設定されます）")
+
+        from google.cloud import firestore  # 遅延import（ローカルで依存なしでも動くため）
+
+        self._client = firestore.Client(project=self._project_id)
+
+    def _doc_ref(self, *, team_id: str, name: str):
+        n = validate_gem_name(name)
+        # workspaces/{team_id}/gems/{name}
+        return (
+            self._client.collection("workspaces")
+            .document(team_id)
+            .collection("gems")
+            .document(n)
+        )
+
+    def upsert(self, *, team_id: str, name: str, body: str, created_by: str | None) -> Gem:
+        ref = self._doc_ref(team_id=team_id, name=name)
+        n = validate_gem_name(name)
+        now = datetime.now(timezone.utc)
+        payload = {
+            "team_id": team_id,
+            "name": n,
+            "body": body.strip(),
+            "created_by": created_by,
+            "created_at": now,
+            "updated_at": now,
+        }
+        ref.set(payload, merge=True)
+        return Gem(team_id=team_id, name=n, body=payload["body"], created_by=created_by, created_at=now)
+
+    def get(self, *, team_id: str, name: str) -> Gem | None:
+        ref = self._doc_ref(team_id=team_id, name=name)
+        snap = ref.get()
+        if not snap.exists:
+            return None
+        d = snap.to_dict() or {}
+        created_at = d.get("created_at")
+        if not isinstance(created_at, datetime):
+            created_at = datetime.now(timezone.utc)
+        return Gem(
+            team_id=team_id,
+            name=d.get("name") or validate_gem_name(name),
+            body=d.get("body") or "",
+            created_by=d.get("created_by"),
+            created_at=created_at,
+        )
+
+    def delete(self, *, team_id: str, name: str) -> bool:
+        ref = self._doc_ref(team_id=team_id, name=name)
+        snap = ref.get()
+        if not snap.exists:
+            return False
+        ref.delete()
+        return True
+
+    def list(self, *, team_id: str, limit: int = 50) -> list[Gem]:
+        limit = max(1, min(limit, 200))
+        col = self._client.collection("workspaces").document(team_id).collection("gems")
+        snaps = col.order_by("updated_at", direction="DESCENDING").limit(limit).stream()
+        out: list[Gem] = []
+        for s in snaps:
+            d = s.to_dict() or {}
+            created_at = d.get("created_at")
+            if not isinstance(created_at, datetime):
+                created_at = datetime.now(timezone.utc)
+            out.append(
+                Gem(
+                    team_id=team_id,
+                    name=str(d.get("name") or s.id),
+                    body=str(d.get("body") or ""),
+                    created_by=d.get("created_by"),
+                    created_at=created_at,
+                )
+            )
+        return out
+
+
+def build_store() -> GemStore:
+    """
+    Cloud Run では Firestore（永続）を使い、ローカルは依存/認証が無ければメモリにフォールバック。
+    """
+    try:
+        return FirestoreGemStore()
+    except Exception:
+        return InMemoryGemStore()
+

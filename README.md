@@ -58,6 +58,7 @@ Slack の App 管理画面で以下を設定します。
 - **Slash Commands**（例: `/hello`）
   - Command を `/hello`
   - Request URL を `https://<CloudRunのURL>/slack/events` に設定
+  - 追加で `/gem` も作成（Request URL は同じ）
 
 ### Cloud Run へデプロイ（例: Artifact Registry を使わない最短）
 
@@ -151,3 +152,23 @@ GitHub リポジトリの **Settings → Secrets and variables → Actions** に
 - 例: `gemsrack/slack/events/reaction_added.py` を作成
 - ファイル内に `register(slack_app)` を定義する
 - 自動で読み込まれます（アプリ起動時に `gemsrack.slack.events` 配下を探索）
+
+## Gem 機能（作成・実行）
+
+`/gem` コマンドで “Gem（小さな自動化）” を作成・実行できます。
+
+- **作成/更新**: `/gem create <name> <body...>`
+- **実行**: `/gem <name>` または `/gem run <name>`
+- **一覧**: `/gem list`
+- **削除**: `/gem delete <name>`
+- **公開実行**: `/gem <name> --public`（結果をチャンネルに投稿）
+
+例:
+- `/gem create hello おはようございます！`
+- `/gem hello`
+
+### 保存先（永続化）
+- **Cloud Run**: Firestore（推奨 / 自動で使います）
+- **ローカル**: 認証が無い場合はメモリにフォールバック（再起動で消えます）
+
+Cloud Run の実行 Service Account に Firestore 権限が必要です（例: `roles/datastore.user`）。
