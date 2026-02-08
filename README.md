@@ -76,6 +76,70 @@ gcloud run deploy gemsrack-slackbot \
 デプロイ後、表示される URL に対して Slack 側の Request URL を
 `<CloudRunのURL>/slack/events` へ設定してください。
 
+## GitHub の main push で自動デプロイ（GitHub Actions）
+
+このリポジトリには `.github/workflows/deploy-cloud-run.yml` を同梱しています。  
+**鍵ファイル不要**の Workload Identity Federation で GitHub Actions から Cloud Run にデプロイします。
+
+### 1) GCP 側（Workload Identity Federation + SA）
+
+以下は例です（`ORG/REPO` とプロジェクト番号などは置き換え）。
+
+```bash
+PROJECT_ID=gemsrack
+PROJECT_NUMBER="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
+REGION=asia-northeast1
+
+POOL_ID=github
+PROVIDER_ID=github
+SA_NAME=gemsrack-gha-deployer
+REPO="ORG/REPO" # 例: yutotakagi/Gemsrack
+
+gcloud iam workload-identity-pools create "${POOL_ID}" \
+  --project="${PROJECT_ID}" \
+  --location="global" \
+  --display-name="GitHub Actions pool"
+
+gcloud iam workload-identity-pools providers create-oidc "${PROVIDER_ID}" \
+  --project="${PROJECT_ID}" \
+  --location="global" \
+  --workload-identity-pool="${POOL_ID}" \
+  --display-name="GitHub provider" \
+  --issuer-uri="https://token.actions.githubusercontent.com" \
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
+  --attribute-condition="attribute.repository=='${REPO}'"
+
+gcloud iam service-accounts create "${SA_NAME}" --project "${PROJECT_ID}"
+SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+
+# Cloud Run へのデプロイに必要な権限（最小寄せ。必要に応じて追加）
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+  --member="serviceAccount:${SA_EMAIL}" \
+  --role="roles/run.admin"
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+  --member="serviceAccount:${SA_EMAIL}" \
+  --role="roles/cloudbuild.builds.editor"
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+  --member="serviceAccount:${SA_EMAIL}" \
+  --role="roles/storage.admin"
+gcloud iam service-accounts add-iam-policy-binding "${SA_EMAIL}" \
+  --member="principalSet://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${POOL_ID}/attribute.repository/${REPO}" \
+  --role="roles/iam.workloadIdentityUser"
+
+WIF_PROVIDER="projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${POOL_ID}/providers/${PROVIDER_ID}"
+echo "WIF Provider: ${WIF_PROVIDER}"
+echo "Service Account: ${SA_EMAIL}"
+```
+
+### 2) GitHub 側（Secrets）
+
+GitHub リポジトリの **Settings → Secrets and variables → Actions** に以下を追加:
+- `GCP_WORKLOAD_IDENTITY_PROVIDER`: 上の `WIF Provider` の値
+- `GCP_SERVICE_ACCOUNT_EMAIL`: 上の `Service Account` の値
+
+※ Slack の `SLACK_BOT_TOKEN` / `SLACK_SIGNING_SECRET` は **Cloud Run 側に保持**しておく運用がおすすめです  
+（workflow は既存の環境変数を上書きしないため、GitHub Secrets に Slack 秘密値を置かずに済みます）。
+
 ## 追加実装のガイド（今後コマンド/イベントを増やす）
 
 ### Slash Command を増やす

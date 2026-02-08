@@ -1,0 +1,41 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: gemsrack
+  REGION: asia-northeast1
+  SERVICE: gemsrack-slackbot
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Workload Identity Federation (鍵なし) で GCP に認証
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      # 既存の Cloud Run サービス設定（環境変数/Secrets 等）は保持しつつ、
+      # ソースからビルドして新リビジョンをデプロイします。
+      - name: Deploy
+        run: |
+          gcloud run deploy "${SERVICE}" \
+            --source . \
+            --region "${REGION}" \
+            --project "${PROJECT_ID}" \
+            --quiet
