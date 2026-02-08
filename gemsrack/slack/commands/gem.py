@@ -153,7 +153,7 @@ def register(slack_app) -> None:  # noqa: ANN001
                 print(f"[gem] views.open failed: {err} data={data}")
                 hint = ""
                 if err in ("missing_scope", "not_allowed_token_type"):
-                    hint = "\n必要スコープ: `views:write`（追加後、アプリを再インストール）"
+                    hint = "\n必要スコープ: `commands`（＋通知には `chat:write`）。追加後、アプリを再インストール。"
                 elif err in ("invalid_trigger_id", "trigger_exchanged"):
                     hint = "\n`trigger_id` の期限切れの可能性があります（Cloud Run の cold start 回避に min instances=1 推奨）"
                 elif err in ("invalid_auth", "not_authed", "account_inactive", "token_revoked"):
