@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import threading
 
+from flask import current_app
 from slack_sdk.errors import SlackApiError, SlackRequestError
 
 from ...ai import build_gemini_client
@@ -23,6 +24,20 @@ def register(slack_app) -> None:  # noqa: ANN001
             return _store, None
         if _store_error is not None:
             return None, _store_error
+
+        # Flask app が既に共有ストアを初期化していればそれを使う（特に memory backend でデータ共有するため）
+        try:
+            shared = current_app.extensions.get("gem_store")
+            shared_err = current_app.extensions.get("gem_store_error")
+            if shared is not None:
+                _store = shared
+                return _store, None
+            if shared_err:
+                _store_error = str(shared_err)
+                return None, _store_error
+        except Exception:
+            pass
+
         try:
             _store = build_store()
             return _store, None

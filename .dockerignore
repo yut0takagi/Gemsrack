@@ -7,3 +7,7 @@ venv/
 .git/
 .idea/
 .vscode/
+
+# frontend
+frontend/node_modules/
+frontend/dist/

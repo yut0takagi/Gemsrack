@@ -7,6 +7,7 @@
 
 - **エンドポイント**: `POST /slack/events`
 - **ヘルスチェック**: `GET /health`
+- **Web UI**: `GET /`（ReactでGem一覧を閲覧）
 - **必要な環境変数**:
   - `SLACK_BOT_TOKEN`（`xoxb-...`）
   - `SLACK_SIGNING_SECRET`
@@ -27,6 +28,37 @@ python main.py
 curl -sS localhost:8080/health
 ```
 
+## Web UI（React）で Gem 一覧を見る
+
+Slack 以外から Gem を確認するために、`frontend/` に React（Vite）製の簡易UIを同梱しています。
+
+### 1) バックエンド（API）を起動
+
+Gem一覧は JSON API で取得します。
+
+- `GET /api/gems`（一覧）
+- `GET /api/gems/<name>`（詳細）
+
+Slack と同じ Firestore を見せたい場合は、**Slack の team_id** を `GEMSRACK_TEAM_ID` に設定してください
+（単一ワークスペース運用ならこれが一番楽です）。
+
+```bash
+export GEMSRACK_TEAM_ID="T0123456789" # 任意。未指定なら "local"
+python main.py
+```
+
+### 2) フロントエンドを起動（開発）
+
+Vite の dev server から `/api` を `http://localhost:8080` に proxy します（CORS不要）。
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+ブラウザで `http://localhost:5173` を開くと、Gem一覧を閲覧できます。
+
 ### ローカル起動（Docker / docker compose）
 
 `.env` を用意します（雛形: `.env.example`）。
@@ -43,6 +75,7 @@ curl -sS localhost:8080/health
 補足:
 - `.env` を作らなくても起動はしますが、その場合 `POST /slack/events` は 500 を返します（Slack 未設定のため）。
 - `.env` は `.gitignore` 済みです（秘密情報の誤コミット防止）。
+- UI は `http://localhost:8080/` で確認できます（Gem一覧）。
 
 ### Slack App 側の設定
 
@@ -82,6 +115,10 @@ gcloud run deploy gemsrack-slackbot \
 
 デプロイ後、表示される URL に対して Slack 側の Request URL を
 `<CloudRunのURL>/slack/events` へ設定してください。
+
+補足:
+- `--source .` でのデプロイは、リポジトリ直下の `Dockerfile` を検出すると **Dockerfileでビルド**されます。
+- この Dockerfile は **Reactフロント（`frontend/`）も同梱してビルド**するため、Cloud Run のURLの `/` でGem一覧UIが表示されます。
 
 ## GitHub の main push で自動デプロイ（GitHub Actions）
 
@@ -197,3 +234,4 @@ Cloud Run の実行 Service Account に Firestore 権限が必要です（例: `
 - Cloud Run の環境変数 `GEMINI_API_KEY` を設定してください
 - 省略時はデフォルトで `GEMINI_MODEL=gemini-2.5-flash` を使用します
 - 画像生成Gemは `GEMINI_IMAGE_MODEL` を使用します（既定: `gemini-2.5-flash-image`）
+
