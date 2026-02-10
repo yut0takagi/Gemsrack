@@ -1,0 +1,76 @@
+name: 🐛 バグ報告
+description: 不具合の報告はこちら
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ありがとうございます。再現できる情報があるほど、修正が早くなります。
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: 概要
+      description: 何が起きているかを1〜3行で
+      placeholder: 例) /gem run xxx でモーダル送信後にエラーになる
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期待する挙動
+      placeholder: 例) モーダルの入力を反映して結果が返る
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 実際の挙動
+      placeholder: 例) dispatch_failed になる / 500が返る など
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: 再現手順
+      description: できるだけ具体的に（コマンド、入力、手順）
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: 環境
+      options:
+        - ローカル（Python）
+        - ローカル（Docker / docker compose）
+        - Cloud Run
+        - その他（本文に記載）
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: ログ / スクリーンショット
+      description: 個人情報・秘密情報（Token等）は伏せてください
+      placeholder: 例) Cloud Run のログ / Slackのエラー表示 / 画面キャプチャ
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: 関連コミット/リリース
+      placeholder: 例) main@abc1234 / v0.1.0
+    validations:
+      required: false
+

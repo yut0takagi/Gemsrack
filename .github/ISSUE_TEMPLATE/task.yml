@@ -1,0 +1,31 @@
+name: 🧹 作業（運用/リファクタ/ドキュメント）
+description: バグ/機能追加以外の作業はこちら
+title: "[Task] "
+labels: ["chore"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: 概要
+      placeholder: 例) READMEの手順更新 / CI改善 / リファクタ
+    validations:
+      required: true
+
+  - type: textarea
+    id: todo
+    attributes:
+      label: 具体的な作業内容（ToDo）
+      value: |
+        - [ ] 
+        - [ ] 
+        - [ ] 
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: 補足
+    validations:
+      required: false
+
