@@ -95,13 +95,22 @@ class InMemoryGemStore(GemStore):
 
 class FirestoreGemStore(GemStore):
     def __init__(self, *, project_id: str | None = None) -> None:
-        self._project_id = project_id or os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCP_PROJECT")
-        if not self._project_id:
-            raise RuntimeError("GOOGLE_CLOUD_PROJECT が見つかりません（Cloud Run では自動設定されます）")
+        # Cloud Run では環境変数 `GOOGLE_CLOUD_PROJECT` が常に入るとは限らない。
+        # google-cloud-firestore はメタデータサーバ/ADC から project を解決できるため、
+        # ここで必須化せず、見つからない場合はライブラリ側に委ねる。
+        self._project_id = (
+            project_id
+            or os.environ.get("GOOGLE_CLOUD_PROJECT")
+            or os.environ.get("GCP_PROJECT")
+            or os.environ.get("GCLOUD_PROJECT")
+        )
 
         from google.cloud import firestore  # 遅延import（ローカルで依存なしでも動くため）
 
-        self._client = firestore.Client(project=self._project_id)
+        if self._project_id:
+            self._client = firestore.Client(project=self._project_id)
+        else:
+            self._client = firestore.Client()
 
     def _doc_ref(self, *, team_id: str, name: str):
         n = validate_gem_name(name)
