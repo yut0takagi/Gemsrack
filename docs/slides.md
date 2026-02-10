@@ -1,280 +1,356 @@
 ---
 marp: true
-title: Gemsrack - SlackBot on Cloud Run
-description: Slack上でGemを作成・実行できるSlackBot（Cloud Run / GitHub Actions 自動デプロイ）
-size: 16:9
+theme: default
 paginate: true
-header: "Gemsrack"
-footer: "Cloud Run / Slack Bolt / GitHub Actions"
+size: 16:9
 style: |
-  /* CyberAgent “っぽい”ミニマル寄せ（完全再現ではなく雰囲気） */
   :root {
-    --fg: #111111;
-    --muted: #5b5b5b;
-    --bg: #ffffff;
-    --bg2: #0b0f14;
-    --accent: #00a99d;
-    --accent2: #19c37d;
-    --codebg: #0f172a;
+    --ca-green: #00a950;
+    --text-main: #111;
+    --text-sub: #555;
+    --border-color: #ddd;
   }
 
   section {
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
-      "Hiragino Sans", "Noto Sans JP", "Yu Gothic", "Meiryo", Arial, sans-serif;
-    color: var(--fg);
-    background: var(--bg);
-    padding: 64px 72px;
-    letter-spacing: 0.01em;
+    font-family: "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+    background: #fff;
+    color: var(--text-main);
+    padding: 60px 80px;
+  }
+
+  section::after {
+    content: attr(data-marpit-pagination);
+    position: absolute;
+    bottom: 30px;
+    right: 40px;
+    font-size: 14px;
+    color: #999;
   }
 
   h1 {
-    font-size: 54px;
-    line-height: 1.05;
-    margin: 0 0 18px 0;
-    font-weight: 800;
+    font-size: 44px;
+    margin-bottom: 20px;
   }
+
   h2 {
-    font-size: 34px;
-    line-height: 1.18;
-    margin: 0 0 18px 0;
-    font-weight: 800;
+    font-size: 28px;
+    border-bottom: 2px solid var(--ca-green);
+    padding-bottom: 6px;
+    margin-bottom: 24px;
   }
+
   h3 {
-    font-size: 24px;
-    line-height: 1.2;
-    margin: 0 0 12px 0;
-    font-weight: 800;
-  }
-  p, li {
     font-size: 22px;
-    line-height: 1.45;
-  }
-  strong { color: var(--accent); }
-  a { color: var(--accent); }
-  ul { margin: 10px 0 0 0; }
-  li { margin: 8px 0; }
-
-  h1::after, h2::after {
-    content: "";
-    display: block;
-    width: 88px;
-    height: 6px;
-    margin-top: 14px;
-    background: linear-gradient(90deg, var(--accent), var(--accent2));
-    border-radius: 999px;
+    margin-bottom: 12px;
   }
 
-  header, footer {
-    font-size: 14px;
-    color: var(--muted);
+  p, li {
+    font-size: 18px;
+    line-height: 1.6;
   }
 
-  pre, code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  }
-  pre {
-    background: var(--codebg);
-    color: #e5e7eb;
-    padding: 14px 16px;
-    border-radius: 12px;
-  }
-  code {
-    background: #eef2ff;
-    padding: 2px 6px;
-    border-radius: 8px;
+  .box {
+    border: 1px solid var(--border-color);
+    padding: 24px;
+    margin-top: 20px;
+    display: inline-block;
   }
 
-  .cols {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 28px;
-    align-items: start;
+  section.section {
+    display: flex;
+    align-items: center;
   }
-  .card {
-    border: 1px solid #e6e6e6;
-    border-radius: 16px;
-    padding: 18px 18px;
-  }
-  .card h3::after { content: none; }
 
-  section.cover {
-    background: radial-gradient(1200px 700px at 20% 10%, #102531 0%, var(--bg2) 55%, #070a0f 100%);
-    color: #f9fafb;
+  section.section h1 {
+    font-size: 48px;
   }
-  section.cover header, section.cover footer { color: rgba(255,255,255,0.65); }
-  section.cover strong { color: #7fffd4; }
-  section.cover h1::after { background: linear-gradient(90deg, #7fffd4, var(--accent2)); }
 
-  section.dark {
-    background: var(--bg2);
-    color: #f9fafb;
-  }
-  section.dark header, section.dark footer { color: rgba(255,255,255,0.65); }
-  section.dark code { background: rgba(255,255,255,0.10); color: #f9fafb; }
-  section.dark h1::after, section.dark h2::after {
-    background: linear-gradient(90deg, var(--accent2), var(--accent));
+  .em {
+    color: var(--ca-green);
+    font-weight: bold;
   }
 ---
-
-<!-- _class: cover -->
 
 # Gemsrack
-Slackで “作業” を “実行” に変える  
-小さな自動化（Gem）を増やしていく社内プロダクト
+Slackで作る、Bizチームのための小さな自動化「Gem」
+
+<div class="box">
+<p style="margin:0"><span class="em">作る</span>（テンプレ/AI）→ <span class="em">実行</span>（/gem）→ <span class="em">共有</span>（再利用）</p>
+</div>
+
+<p style="margin-top:18px;color:var(--text-sub)">対象: 営業 / CS / マーケ / 企画 / BizOps（Slackで仕事が回っているチーム）</p>
 
 ---
 
-## 一言でいうと
-**Slack上から業務タスクを安全に実行できる「社内向け自動化の入口」**です。
+## このスライドで伝えたいこと
 
-- 依頼・確認・実行が Slack で完結
-- “よくある作業” を Gem として追加していける
-- 追加しても運用が増えない（Cloud Run + 自動デプロイ）
+- **Gemsrackは、Slack上で “業務の型” をGemとして資産化**し、誰でも同じ品質で実行できる仕組み
+- **Bizのよくある作業（文章/要約/整形/チェック/テンプレ返信）を最短で自動化**
+- **導入は軽く、運用は安全に（公開/非公開・権限・ログ・保存）**
 
----
-
-## なぜ必要？（現場のあるある）
-- Slackでの依頼が **人依存・属人化** しやすい
-- 手作業の転記/確認が多く、**ミス** と **待ち** が発生
-- “ちょっとした自動化” が点在して、**探せない・再利用できない**
-- 運用が怖くて仕組み化できない（権限/ログ/秘密情報）
-
----
-
-## Gemsrack が提供する価値
-- **スピード**: Slackから即実行・即レス（待ち時間の削減）
-- **品質**: 手順の標準化でミスを減らす
-- **再利用**: 「作った自動化」を組織で使い回す
-- **ガバナンス**: 実行ログ/秘密情報管理/失敗通知を前提にする
-
----
-
-## できること（例）
-“Gem” は **小さく作って増やす**前提の機能単位です。
-
-<div class="cols">
-  <div class="card">
-    <h3>チーム運用</h3>
-    <ul>
-      <li>定例レポート集計→投稿</li>
-      <li>リリース告知テンプレ生成</li>
-      <li>当番/ローテのリマインド</li>
-    </ul>
-  </div>
-  <div class="card">
-    <h3>情報処理</h3>
-    <ul>
-      <li>URL要約/翻訳/要点抽出</li>
-      <li>ファイルの整形（画像/CSV）</li>
-      <li>社内FAQ検索→回答案</li>
-    </ul>
-  </div>
+<div class="box">
+<p style="margin:0">キーワード: <span class="em">再現性</span> / <span class="em">標準化</span> / <span class="em">Slack起点</span> / <span class="em">小さく始めて育てる</span></p>
 </div>
 
 ---
 
-## どう使う？（ユーザー体験）
-- **Slash command**: `/xxxxx` で実行（必要なら入力を促す）
-- **メンション**: `@Gemsrack 〜して` で実行（会話の流れで）
-- 結果は **スレッド** に返して、会話の文脈を崩さない
-- 失敗時は理由と次アクションを返す（運用に残さない）
+## ありがちな課題（Biz現場）
+
+- **同じ作業の繰り返し**: 返信文作成、議事録要約、提案書の叩き台、FAQ整形
+- **属人化**: “できる人” の言い回し/手順がチームに残らない
+- **品質のばらつき**: 新人・兼務・繁忙でアウトプットが揺れる
+- **ツールの分断**: いろいろ散らばり、結局Slackに戻って手作業
+
+<div class="box">
+<p style="margin:0">狙いは「<span class="em">時間短縮</span>」だけでなく「<span class="em">品質の平準化</span>」「<span class="em">ナレッジの再利用</span>」</p>
+</div>
 
 ---
 
-## 実績（いま動いているもの）
-### 対応済み（MVP）
-- **`/hello`**（Slash command）
-- **`app_mention`**（メンションイベント）
+## Before / After（現場の変化）
 
-→ まずは “Gem を増やす土台” を作った段階です。
+![bg right:45% w:520](./assets/before-after.svg)
 
----
+### Before（手作業）
+- 「誰かのやり方」を都度聞く / 過去ログを探す
+- 文章/要約の品質が人によってブレる
+- レビュー/差し戻しが増え、結局時間が溶ける
 
-## 導入・運用（ビジネス観点）
-- **運用基盤**: Cloud Run（スケール・可用性・運用負担を最小化）
-- **更新**: GitHub の `main` への push/merge で自動デプロイ
-- **秘密情報**: repoに置かない（Cloud Run env / Secret Manager）
-- **監視**: `/health` で疎通、失敗は Slack に通知できる設計へ拡張
-
----
-
-## 成果指標（KPI例）
-- **削減時間**: 1回あたりの作業時間 × 実行回数
-- **リードタイム**: 依頼→完了までの時間
-- **品質**: 手戻り/ミス/問い合わせの減少
-- **定着**: 週次アクティブ利用者、Gem利用回数、継続率
+### After（Gemで標準化）
+- **“仕事の型” をボタン1つで再実行**（/gem）
+- **チェック観点を埋め込める**ので品質が揃う
+- 新人でも同じレベルに寄せやすい（オンボーディング短縮）
 
 ---
 
-## ロードマップ（例）
-- **いま**: Gem を増やす土台（Slack受信・拡張構成・デプロイ自動化）
-- **次**: よく使う Gem を 5〜10 個作る（価値の可視化）
-- **その次**: 実行ログ/権限/承認フロー・スケジュール実行（運用の型）
+## Gemsrackがやること
+
+- SlackのSlashコマンドで **Gem（小さな自動化）を作成・実行**
+- Gemは **静的テキスト** でも **AI（構造化）** でもOK
+- 実行結果は **自分だけ**（DM）にも **チーム共有**（チャンネル）にも出せる
+- Web UIで **Gem一覧を棚卸し**（どれが使われているか把握しやすい）
+
+<p style="margin-top:10px;color:var(--text-sub)">“AIチャット” と違い、毎回お願いの仕方を考えなくても、<span class="em">決まった入力→決まった出力</span>で動きます。</p>
 
 ---
 
-<!-- _class: dark -->
+## Gemとは（業務の「型」）
 
-## 付録：技術概要（開発者向け）
-- Slack → `POST /slack/events` を Cloud Run で受信
-- 実装は **Slack Bolt + Flask**
-- コマンド/イベントは **1ファイル=1機能**で増やす
+Gemは、Biz作業を “再現可能な手順” に落としたものです。
 
----
+- **入力**: 何を渡す？（例: 商談メモ、問い合わせ文、要点箇条書き）
+- **処理**: どう考える？（例: 目的、トーン、制約、チェック観点）
+- **出力**: 何を返す？（例: 返信テンプレ、要約、ToDo、表形式）
 
-<!-- _class: dark -->
-
-## 付録：拡張しやすいディレクトリ構成
-
-```text
-gemsrack/
-  routes/                 # HTTP ルート
-    health.py
-    slack.py              # /slack/events
-  slack/
-    build.py              # Bolt App 初期化
-    registry.py           # register() 自動ロード
-    commands/             # Slash commands
-      hello.py
-    events/               # Events
-      app_mention.py
-```
+<div class="box">
+<p style="margin:0"><span class="em">ポイント</span>: Gemは「個人の便利」から「チームの標準」へ育てられる</p>
+</div>
 
 ---
 
-<!-- _class: dark -->
+## 画像イメージ（差し替えOK）
 
-## 付録：ローカル開発（Docker）
+![w:980](./assets/slack-ui-placeholder.svg)
 
-```bash
-cp .env.example .env
-# SLACK_BOT_TOKEN / SLACK_SIGNING_SECRET を設定
-
-docker compose up --build
-curl -sS localhost:8080/health
-```
+<p style="color:var(--text-sub)">ここは後で、実際のSlackのモーダル/実行結果のスクショに置き換える想定（いったんプレースホルダ）。</p>
 
 ---
 
-<!-- _class: dark -->
+## 代表ユースケース（すぐ効く）
 
-## 付録：Cloud Run デプロイ（手動）
+- **営業**: 商談メモ→要点/次アクション/リスク、提案骨子、メール草案
+- **CS**: 問い合わせ文→切り分け、一次回答テンプレ、エスカレ要約
+- **マーケ**: 施策案→仮説/検証設計、SNS文面のバリエーション、LP要約
+- **BizOps/企画**: 仕様の要点抽出、レビュー観点チェック、定例議事録の整理
 
-```bash
-gcloud run deploy gemsrack-slackbot \
-  --source . \
-  --region asia-northeast1 \
-  --allow-unauthenticated
-```
-
-- Slack 側 Request URL:  
-  `https://<CloudRunURL>/slack/events`
+<div class="box">
+<p style="margin:0">向いている作業: <span class="em">繰り返す</span> / <span class="em">型がある</span> / <span class="em">品質を揃えたい</span> / <span class="em">Slackで完結させたい</span></p>
+</div>
 
 ---
 
-<!-- _class: dark -->
+## ユースケース深掘り（営業）
 
-## 付録：自動デプロイ（GitHub Actions）
-- Trigger: `main` への push（= PR merge 後も同様）
-- 認証: Workload Identity Federation（鍵なし）
-- 実行: `gcloud run deploy --source .`
+![bg right:43% w:500](./assets/usecase-sales.svg)
+
+### 入力（例）
+- 商談メモ（箇条書きでもOK）
+- 顧客の背景 / 課題 / 現状の運用 / 競合 / 次回までの宿題
+
+### 出力（例）
+- 要点（3行）/ 次アクション（担当者/期限）/ リスク（優先度付き）
+- 提案骨子（見出し構成）/ フォローアップメール草案（丁寧トーン）
+
+<p style="color:var(--text-sub)">営業の「思考の順番」をGemに閉じ込めると、再現性が上がります。</p>
+
+---
+
+## ユースケース深掘り（CS）
+
+![bg right:43% w:500](./assets/usecase-cs.svg)
+
+### 入力（例）
+- 問い合わせ本文 + 事象の発生条件 + 影響範囲 + 直近変更点
+
+### 出力（例）
+- 切り分け質問（優先順）/ 一次回答テンプレ（丁寧&簡潔）
+- エスカレーション要約（開発が欲しい情報の形式で）
+
+<p style="color:var(--text-sub)">CSは「聞くべき項目」を漏れなく出すだけでも大きく改善します。</p>
+
+---
+
+## 実行イメージ（Slack）
+
+- **一覧**: `/gem list`
+- **実行**: `/gem <name>` または `/gem run <name>`
+- **詳細**: `/gem show <name>`
+- **共有して実行**: `/gem <name> --public`（結果をチャンネル投稿）
+
+<div class="box">
+<p style="margin:0">Slack内で完結するので、<span class="em">「使われ続ける」</span>が起きやすい</p>
+</div>
+
+---
+
+## 作り方（2種類）
+
+### 1) まずは最短（静的テキスト）
+
+- 例: `/gem create hello おはようございます！`
+- 例: `/gem create faq-ask 「状況を教えてください」テンプレ...`
+
+### 2) 型を作る（AI Gem）
+
+- `/gem create <name>` でモーダル
+- **概要 / システム / 入力形式 / 出力形式** を保存して “再現性” を担保
+
+<p style="margin-top:10px;color:var(--text-sub)">おすすめ: まずテンプレGemで「何が繰り返し作業か」を特定し、次にAI Gemで品質と速度を上げる。</p>
+
+---
+
+## AI Gemが強いポイント（Biz向け）
+
+- **出力の型を固定**できる（例: 箇条書き・表・JSONなど）
+- **チェック観点を埋め込める**（例: 法務/ブランド/NGワード/事実確認）
+- **トーンを統一**できる（例: 丁寧/簡潔/社内向け/顧客向け）
+
+<div class="box">
+<p style="margin:0">“毎回AIにお願いする” ではなく、<span class="em">使える形にパッケージ化</span>する</p>
+</div>
+
+---
+
+## AI Gemの「型」例（出力形式を固定）
+
+例えば「商談要約Gem」の出力を固定すると、レビューしやすく、他の人も使いやすい。
+
+- **要点（3行）**
+- **課題（箇条書き）**
+- **提案の方向性（3案）**
+- **次アクション（担当/期限）**
+- **確認事項（質問）**
+
+<div class="box">
+<p style="margin:0">型があるほど、チームは “<span class="em">出力を使い回す</span>” 文化になりやすい</p>
+</div>
+
+---
+
+## 期待できる効果（例）
+
+- **時間削減**: 文章作成/要約/整形のリードタイム短縮
+- **品質の平準化**: ばらつきが減り、レビュー負荷が下がる
+- **オンボーディング短縮**: 新人でもGemで標準アウトプットに寄せられる
+- **ナレッジの棚卸し**: “よく使う型” が一覧化され、改善が回る
+
+---
+
+## 運用・ガバナンス（安心して使う）
+
+- **公開/非公開**: `--public` でチャンネル共有、通常は個人DMで実行も可能
+- **権限とスコープ**: Slack Appのスコープは必要最小（例: `commands`, `chat:write`）
+- **保存先**: Cloud Run運用は Firestore（推奨）、ローカルはメモリフォールバック
+- **拡張性**: コマンド/イベントを追加して運用に合わせられる
+
+<p style="margin-top:10px;color:var(--text-sub)">「公開投稿は必要なときだけ」「通常は個人DMで試す」運用にすると、チームの心理的安全性も保てます。</p>
+
+---
+
+## システム構成（ざっくり）
+
+- 図: 全体像（差し替えOK）
+
+![w:980](./assets/architecture.svg)
+
+- **Slack**: `/gem` コマンド・イベント受信
+- **Cloud Run**: Python/FlaskのBotサーバ（`POST /slack/events`）
+- **Firestore**: Gem定義の永続化（Cloud Runで推奨）
+- **Gemini API（任意）**: AI Gem実行（環境変数でON）
+- **Web UI（React）**: `/` でGem一覧の閲覧（棚卸し用）
+
+---
+
+## 導入ステップ（最短）
+
+- Slack Appを作成し、スコープ設定（`commands`, `chat:write` など）
+- Cloud Runへデプロイし、Request URL を `/slack/events` に設定
+- まずは **3〜5個のGem** を作る（頻出作業から）
+- 使われたGemを見ながら、**入力/出力の型**と**チェック観点**を磨く
+
+<div class="box">
+<p style="margin:0">最初は「テンプレGem」→ 次に「AI Gem」で標準化、の順がスムーズ</p>
+</div>
+
+---
+
+## 導入の進め方（おすすめの型）
+
+- **Day 0**: よくある作業を棚卸し（10〜20個の候補を出す）
+- **Day 1**: 上位3つをテンプレGem化（とにかく使い始める）
+- **Week 1**: 利用ログとヒアリングで改善（入力/出力/観点を固める）
+- **Week 2**: AI Gem化（品質の平準化・チェック観点の埋め込み）
+- **以降**: 「作る」より「育てる」（毎週使われるGemを増やす）
+
+<div class="box">
+<p style="margin:0">ゴールはGemの数ではなく、<span class="em">現場の定着</span>と<span class="em">運用の改善サイクル</span></p>
+</div>
+
+---
+
+## 効果測定（Bizが見たい指標）
+
+- 図: KPI例（差し替えOK）
+
+![w:980](./assets/kpi.svg)
+
+- **利用回数**: `/gem` 実行回数（チーム/個人）
+- **削減時間**: Gemごとの想定短縮（例: 1回あたり5分）×回数
+- **品質**: レビュー指摘数、一次回答の解決率、返信速度
+- **定着**: “毎週使われるGem” の数、使われないGemの整理
+
+---
+
+## 次の一手（提案）
+
+- Bizの定例から、**10分で作れるGemを3つ**選ぶ
+  - 例: 「商談メモ要約」「一次回答テンプレ」「議事録ToDo化」
+- 1週間運用して、**型の改善**（入力/出力/NG観点）を1回回す
+- 以降は “Gemを増やす” ではなく、**よく使うGemを育てる**
+
+<div class="box">
+<p style="margin:0"><span class="em">Gemsrack</span>: Slackを入口に、Bizの仕事を資産化する</p>
+</div>
+
+---
+
+## 付録: 画像を本物に差し替えるとき
+
+- `docs/assets/` のSVGは **プレースホルダ**です
+- 実際の画面（Slackモーダル、実行結果、Gem一覧UI）スクショがあれば
+  - `./assets/slack-ui-placeholder.svg` をスクショに差し替え
+  - 必要なら「個人情報/顧客名」をモザイクした版を作成
+
+<div class="box">
+<p style="margin:0">スクショをもらえれば、レイアウトに合わせて <span class="em">最適なサイズ/配置</span>までこちらで整えます</p>
+</div>
