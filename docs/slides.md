@@ -69,6 +69,27 @@ style: |
     color: var(--ca-green);
     font-weight: bold;
   }
+
+  img.shot {
+    border-radius: 14px;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 18px 40px rgba(0,0,0,0.18);
+  }
+
+  .cols {
+    display: flex;
+    gap: 22px;
+    align-items: flex-start;
+  }
+  .cols > div {
+    flex: 1;
+    min-width: 0;
+  }
+  .caption {
+    margin-top: 10px;
+    font-size: 14px;
+    color: var(--text-sub);
+  }
 ---
 
 # Gemsrack
@@ -148,11 +169,55 @@ Gemは、Biz作業を “再現可能な手順” に落としたものです。
 
 ---
 
-## 画像イメージ（差し替えOK）
+## 実画面（Gem作成）
 
-![w:980](./assets/slack-ui-placeholder.svg)
+<div class="cols">
+  <div>
+    <img class="shot" src="./img/Gem作成プロンプト例.png" style="width:100%" />
+    <div class="caption">1) まずは Slack で <code>/gem create &lt;name&gt;</code> を入力</div>
+  </div>
+  <div>
+    <img class="shot" src="./img/Gem作成画面.png" style="width:100%" />
+    <div class="caption">2) モーダルで「概要/システム/入出力形式」を保存（＝再現性の担保）</div>
+  </div>
+</div>
 
-<p style="color:var(--text-sub)">ここは後で、実際のSlackのモーダル/実行結果のスクショに置き換える想定（いったんプレースホルダ）。</p>
+---
+
+## 実画面（長文・改行入力で実行）
+
+<div class="cols">
+  <div>
+    <img class="shot" src="./img/Gem-メール添削実行例.png" style="width:100%" />
+    <div class="caption">入力は複数行OK（メール本文をそのまま貼る）</div>
+  </div>
+  <div>
+    <img class="shot" src="./img/Gem-メール添削実行結果.png" style="width:100%" />
+    <div class="caption">出力は「本文 + 修正ポイント」など、型に寄せられる</div>
+  </div>
+</div>
+
+---
+
+## 実画面（ペライチ生成：文章 → 図解画像）
+
+<div class="cols">
+  <div>
+    <img class="shot" src="./img/Gem-ペライチ生成プロンプト.png" style="width:100%" />
+    <div class="caption">長い記事やメモから “1枚で伝わる” 要点を抽出</div>
+  </div>
+  <div>
+    <img class="shot" src="./img/Gemペライチ生成結果.png" style="width:100%" />
+    <div class="caption">画像生成Gemとして、図解を自動で作れる（共有も容易）</div>
+  </div>
+</div>
+
+---
+
+## 実画面（Web UI：Gem一覧）
+
+<img class="shot" src="./img/Gem一覧画面.png" style="width: 100%" />
+<div class="caption">Slack外でも「何があるか/どう使うか」を棚卸しできる（選択で詳細も確認）</div>
 
 ---
 
@@ -303,54 +368,3 @@ Gemは、Biz作業を “再現可能な手順” に落としたものです。
 </div>
 
 ---
-
-## 導入の進め方（おすすめの型）
-
-- **Day 0**: よくある作業を棚卸し（10〜20個の候補を出す）
-- **Day 1**: 上位3つをテンプレGem化（とにかく使い始める）
-- **Week 1**: 利用ログとヒアリングで改善（入力/出力/観点を固める）
-- **Week 2**: AI Gem化（品質の平準化・チェック観点の埋め込み）
-- **以降**: 「作る」より「育てる」（毎週使われるGemを増やす）
-
-<div class="box">
-<p style="margin:0">ゴールはGemの数ではなく、<span class="em">現場の定着</span>と<span class="em">運用の改善サイクル</span></p>
-</div>
-
----
-
-## 効果測定（Bizが見たい指標）
-
-- 図: KPI例（差し替えOK）
-
-![w:980](./assets/kpi.svg)
-
-- **利用回数**: `/gem` 実行回数（チーム/個人）
-- **削減時間**: Gemごとの想定短縮（例: 1回あたり5分）×回数
-- **品質**: レビュー指摘数、一次回答の解決率、返信速度
-- **定着**: “毎週使われるGem” の数、使われないGemの整理
-
----
-
-## 次の一手（提案）
-
-- Bizの定例から、**10分で作れるGemを3つ**選ぶ
-  - 例: 「商談メモ要約」「一次回答テンプレ」「議事録ToDo化」
-- 1週間運用して、**型の改善**（入力/出力/NG観点）を1回回す
-- 以降は “Gemを増やす” ではなく、**よく使うGemを育てる**
-
-<div class="box">
-<p style="margin:0"><span class="em">Gemsrack</span>: Slackを入口に、Bizの仕事を資産化する</p>
-</div>
-
----
-
-## 付録: 画像を本物に差し替えるとき
-
-- `docs/assets/` のSVGは **プレースホルダ**です
-- 実際の画面（Slackモーダル、実行結果、Gem一覧UI）スクショがあれば
-  - `./assets/slack-ui-placeholder.svg` をスクショに差し替え
-  - 必要なら「個人情報/顧客名」をモザイクした版を作成
-
-<div class="box">
-<p style="margin:0">スクショをもらえれば、レイアウトに合わせて <span class="em">最適なサイズ/配置</span>までこちらで整えます</p>
-</div>
