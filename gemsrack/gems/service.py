@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 import shlex
 
 from .formats import label_for_input, label_for_output
@@ -24,6 +25,47 @@ def parse_public_flag(tokens: list[str]) -> tuple[list[str], bool]:
         else:
             rest.append(t)
     return rest, public
+
+
+def _strip_leading_public_flags(s: str) -> str:
+    """
+    入力本文の先頭に付いた `--public` / `-p` を取り除く（改行を保持したいので split しない）。
+    例: "--public\\nhello" -> "hello"
+    """
+    out = s
+    while True:
+        t = out.lstrip()
+        if t.startswith("--public") and (len(t) == 8 or t[8].isspace()):
+            out = t[8:]
+            continue
+        if t.startswith("-p") and (len(t) == 2 or t[2].isspace()):
+            out = t[2:]
+            continue
+        return out.lstrip()
+
+
+def _raw_input_for_run(raw: str) -> tuple[str | None, str]:
+    """
+    `run <name> ...` の `...` を、改行含めてそのまま返す。
+    戻り値: (name, user_input_raw)
+    """
+    m = re.match(r"^(?:run|exec)\s+([a-z0-9][a-z0-9_-]{0,31})([\s\S]*)$", raw.strip(), flags=re.I)
+    if not m:
+        return None, ""
+    name = m.group(1)
+    rest = m.group(2) or ""
+    return name, _strip_leading_public_flags(rest)
+
+
+def _raw_input_for_default_run(raw: str, name: str) -> str:
+    """
+    `<name> ...` の `...` を、改行含めてそのまま返す（先頭 public フラグは除去）。
+    """
+    m = re.match(rf"^{re.escape(name)}([\s\S]*)$", raw.strip(), flags=re.I)
+    if not m:
+        return ""
+    rest = m.group(1) or ""
+    return _strip_leading_public_flags(rest)
 
 
 def handle_gem_command(
@@ -117,7 +159,12 @@ def handle_gem_command(
         if len(tokens) < 2:
             return GemCommandResult(ok=False, message="使い方: `/gem run <name>`\n\n" + _help())
         name = tokens[1]
-        user_input = " ".join(tokens[2:]).strip()
+        # Slash command では改行が入りづらいが、モーダル経由では改行入力が来るので raw から復元する
+        name2, user_input = _raw_input_for_run(raw)
+        if name2 and name2.lower() == name.lower():
+            pass
+        else:
+            user_input = " ".join(tokens[2:]).strip()
         try:
             n = validate_gem_name(name)
         except ValueError as e:
@@ -224,7 +271,10 @@ def handle_gem_command(
         return GemCommandResult(ok=False, message=f"Gem **{n}** が見つかりません。`/gem list` で確認できます。")
     if gem.body.strip():
         return GemCommandResult(ok=True, message=gem.body, public=public)
-    user_input = " ".join(tokens[1:]).strip()
+    # `/gem <name> ...` も、モーダル経由では改行を保持したいので raw から復元する
+    user_input = _raw_input_for_default_run(raw, sub)
+    if not user_input:
+        user_input = " ".join(tokens[1:]).strip()
     # 画像生成 Gem の特例ハンドリング（`/gem <name>` 形式）
     if (gem.output_format or "") == "image_url":
         ok, img_bytes, mime, msg = execute_ai_image_gem(gem=gem, user_input=user_input, gemini=gemini)
@@ -280,6 +330,7 @@ def _help() -> str:
         "- `/gem create <name> --summary ... --system ... --input ... --output ...`: AI Gem定義の作成/更新\n"
         "- `/gem create <name>`: モーダルで AI Gem定義を作成/更新\n"
         "- `/gem <name>` または `/gem run <name>`: Gem実行（静的Gemはbodyを返す）\n"
+        "  - 入力が長い場合は `run <name>`（入力なし）でモーダルから複数行入力できます\n"
         "- `/gem show <name>`: Gem定義の表示\n"
         "- `/gem list`: 一覧\n"
         "- `/gem delete <name>`: 削除\n"

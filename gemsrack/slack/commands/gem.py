@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 import threading
 
 from flask import current_app
@@ -8,7 +9,7 @@ from slack_sdk.errors import SlackApiError, SlackRequestError
 
 from ...ai import build_gemini_client
 from ...gems.store import build_store
-from ...gems.service import handle_gem_command
+from ...gems.service import handle_gem_command, parse_public_flag
 from ...gems.store import validate_gem_name
 from ...gems.formats import INPUT_FORMATS, OUTPUT_FORMATS
 
@@ -64,12 +65,128 @@ def register(slack_app) -> None:  # noqa: ANN001
         team_id = command.get("team_id") or command.get("team_domain") or "unknown"
         user_id = command.get("user_id")
         text = command.get("text", "")
+        trigger_id = command.get("trigger_id")
+        channel_id = command.get("channel_id")
 
         # `/gem create <name>` のときはモーダルで入力できるようにする
         try:
-            tokens = (text or "").strip().split()
+            tokens = shlex.split((text or "").strip())
         except Exception:
-            tokens = []
+            try:
+                tokens = (text or "").strip().split()
+            except Exception:
+                tokens = []
+
+        # `/gem run <name>` や `/gem <name>` で入力が無い場合は、改行対応のモーダルを開く
+        try:
+            tokens2, public_flag = parse_public_flag(tokens)
+        except Exception:
+            tokens2, public_flag = tokens, False
+
+        def _open_run_modal(name: str, *, public: bool) -> bool:
+            if not trigger_id or not channel_id:
+                return False
+            try:
+                n = validate_gem_name(name)
+            except ValueError:
+                return False
+
+            private_metadata = json.dumps(
+                {
+                    "team_id": team_id,
+                    "name": n,
+                    "user_id": user_id,
+                    "channel_id": channel_id,
+                    "public": public,
+                }
+            )
+
+            public_opt = {"text": {"type": "plain_text", "text": "チャンネルに公開（in_channel）"}, "value": "public"}
+            try:
+                client.views_open(
+                    trigger_id=trigger_id,
+                    timeout=2,
+                    view={
+                        "type": "modal",
+                        "callback_id": "gem_run_modal",
+                        "private_metadata": private_metadata,
+                        "title": {"type": "plain_text", "text": "Run Gem"},
+                        "submit": {"type": "plain_text", "text": "Run"},
+                        "close": {"type": "plain_text", "text": "Cancel"},
+                        "blocks": [
+                            {
+                                "type": "section",
+                                "text": {
+                                    "type": "mrkdwn",
+                                    "text": f"*Gem*: `{n}`\n長文/改行入力に対応しています。",
+                                },
+                            },
+                            {
+                                "type": "input",
+                                "block_id": "input",
+                                "optional": True,
+                                "label": {"type": "plain_text", "text": "入力（複数行OK）"},
+                                "element": {
+                                    "type": "plain_text_input",
+                                    "action_id": "value",
+                                    "multiline": True,
+                                    "placeholder": {"type": "plain_text", "text": "ここに入力（改行もOK）"},
+                                },
+                            },
+                            {
+                                "type": "input",
+                                "block_id": "public",
+                                "optional": True,
+                                "label": {"type": "plain_text", "text": "投稿先"},
+                                "element": {
+                                    "type": "checkboxes",
+                                    "action_id": "value",
+                                    "options": [public_opt],
+                                    "initial_options": [public_opt] if public else [],
+                                },
+                            },
+                        ],
+                    },
+                )
+                return True
+            except SlackApiError as e:
+                data = getattr(e.response, "data", None)
+                err = None
+                if isinstance(data, dict):
+                    err = data.get("error")
+                err = err or "unknown_error"
+                print(f"[gem] run modal open failed: {err} data={data}")
+                hint = ""
+                if err in ("invalid_trigger_id", "trigger_exchanged"):
+                    hint = "\n`trigger_id` の期限切れの可能性があります。もう一度コマンドを実行してください。"
+                respond(f"モーダル起動に失敗しました: `{err}`{hint}")
+                return True
+            except SlackRequestError as e:
+                print(f"[gem] run modal request error: {e}")
+                respond("モーダル起動に失敗しました: `network_error`（Slack API への通信エラー）")
+                return True
+            except Exception as e:
+                print(f"[gem] run modal unexpected error: {type(e).__name__} {e}")
+                respond(f"モーダル起動に失敗しました: `{type(e).__name__}`")
+                return True
+
+        # `run/exec` で入力が無い（= name まで）ならモーダル
+        if len(tokens2) >= 2 and tokens2[0].lower() in ("run", "exec") and len(tokens2) == 2:
+            if _open_run_modal(tokens2[1], public=public_flag):
+                return
+
+        # `/gem <name>` で入力が無い & AI/画像Gem（body空）の場合もモーダル
+        if len(tokens2) == 1:
+            maybe = tokens2[0].lower()
+            if maybe not in ("help", "-h", "--help", "list", "show", "info", "create", "set", "delete", "del", "rm"):
+                try:
+                    n = validate_gem_name(maybe)
+                    g = store.get(team_id=team_id, name=n)
+                    if g and not g.body.strip():
+                        if _open_run_modal(n, public=public_flag):
+                            return
+                except Exception:
+                    pass
 
         if len(tokens) >= 2 and tokens[0].lower() in ("create", "set") and len(tokens) == 2:
             name = tokens[1]
@@ -79,8 +196,6 @@ def register(slack_app) -> None:  # noqa: ANN001
                 respond(str(e))
                 return
 
-            trigger_id = command.get("trigger_id")
-            channel_id = command.get("channel_id")
             if not trigger_id or not channel_id:
                 respond("モーダル起動に必要な情報が足りません（trigger_id/channel_id）")
                 return
@@ -317,3 +432,86 @@ def register(slack_app) -> None:  # noqa: ANN001
                         pass
 
         threading.Thread(target=_save_and_notify, daemon=True).start()
+
+    @slack_app.view("gem_run_modal")
+    def gem_run_modal(ack, body, view, client):  # noqa: ANN001
+        ack(response_action="clear")
+
+        meta = {}
+        try:
+            meta = json.loads(view.get("private_metadata") or "{}")
+        except Exception:
+            meta = {}
+
+        team_id = meta.get("team_id") or "unknown"
+        name = meta.get("name") or "unknown"
+        user_id = meta.get("user_id")
+        channel_id = meta.get("channel_id")
+        meta_public = bool(meta.get("public"))
+
+        state = (view.get("state") or {}).get("values") or {}
+
+        def _plain(block_id: str) -> str:
+            b = state.get(block_id) or {}
+            a = b.get("value") or {}
+            if isinstance(a, dict) and "value" in a:
+                return (a.get("value") or "")
+            return ""
+
+        def _checked_public() -> bool:
+            b = state.get("public") or {}
+            a = b.get("value") or {}
+            selected = (a or {}).get("selected_options") or []
+            if not isinstance(selected, list):
+                return False
+            return any((opt or {}).get("value") == "public" for opt in selected if isinstance(opt, dict))
+
+        user_input = _plain("input")
+        public = _checked_public() or meta_public
+
+        def _run_and_notify() -> None:
+            try:
+                store, store_err = _get_store()
+                if store is None:
+                    if channel_id and user_id:
+                        client.chat_postEphemeral(
+                            channel=channel_id,
+                            user=user_id,
+                            text=(
+                                "Gem の保存先（Firestore）の初期化に失敗したため、実行できません。\n"
+                                f"原因: `{store_err or 'unknown'}`"
+                            ),
+                        )
+                    return
+
+                # 改行を保持するため、本文は newline で渡す（service 側で raw から復元）
+                cmd_text = f"run {name} " + ("--public\n" if public else "\n") + (user_input or "")
+                result = handle_gem_command(
+                    store=store,
+                    team_id=team_id,
+                    user_id=user_id,
+                    text=cmd_text,
+                    gemini=gemini,
+                    slack_client=client,
+                    channel_id=channel_id,
+                )
+
+                if not channel_id or not user_id:
+                    return
+                if result.public:
+                    client.chat_postMessage(channel=channel_id, text=result.message)
+                else:
+                    client.chat_postEphemeral(channel=channel_id, user=user_id, text=result.message)
+            except Exception as e:
+                print(f"[gem] run modal execution failed: {type(e).__name__} {e}")
+                if channel_id and user_id:
+                    try:
+                        client.chat_postEphemeral(
+                            channel=channel_id,
+                            user=user_id,
+                            text=f"Gem `{name}` の実行に失敗しました: `{type(e).__name__}`",
+                        )
+                    except Exception:
+                        pass
+
+        threading.Thread(target=_run_and_notify, daemon=True).start()
