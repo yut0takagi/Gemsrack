@@ -156,6 +156,13 @@ def register(slack_app) -> None:  # noqa: ANN001
                     hint = "\n必要スコープ: `commands`（＋通知には `chat:write`）。追加後、アプリを再インストール。"
                 elif err in ("invalid_trigger_id", "trigger_exchanged"):
                     hint = "\n`trigger_id` の期限切れの可能性があります（Cloud Run の cold start 回避に min instances=1 推奨）"
+                elif err == "dispatch_failed":
+                    hint = (
+                        "\nSlack 側でモーダルの表示処理に失敗しました（多くは `trigger_id` 期限切れ/遅延が原因）。"
+                        "\n- まずはもう一度 `/gem create <name>` を実行"
+                        "\n- Cloud Run の cold start が疑わしい場合は **min instances=1**（＋必要なら CPU 常時割当）を推奨"
+                        "\n- 代替: `/gem create <name> <body...>` または `--summary/--system/--input/--output` 形式で作成"
+                    )
                 elif err in ("invalid_auth", "not_authed", "account_inactive", "token_revoked"):
                     hint = "\n`SLACK_BOT_TOKEN` の設定を確認してください（xoxb-...）"
                 respond(f"モーダル起動に失敗しました: `{err}`{hint}")

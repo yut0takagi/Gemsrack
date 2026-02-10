@@ -12,7 +12,17 @@ def slack_events() -> Response:
     error = current_app.extensions.get("slack_error")
 
     if handler is None:
-        return Response(f"Slack is not configured: {error}\n", status=500)
+        # Slack から見ると 500/タイムアウトは `dispatch_failed` になりやすく、
+        # ユーザーに原因が伝わらないため、Slash Command だけは 200 で明示メッセージを返す。
+        try:
+            is_slash_command = request.form.get("command") is not None
+        except Exception:
+            is_slash_command = False
+
+        msg = f"Slack が未設定です: {error}\n" if error else "Slack が未設定です。\n"
+        if is_slash_command:
+            return Response(msg, status=200, content_type="text/plain; charset=utf-8")
+        return Response(msg, status=500, content_type="text/plain; charset=utf-8")
 
     return handler.handle(request)  # type: ignore[no-any-return]
 
