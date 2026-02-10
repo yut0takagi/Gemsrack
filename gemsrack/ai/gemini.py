@@ -150,7 +150,7 @@ def build_gemini_client() -> GeminiClient | None:
     if not api_key:
         return None
     model = os.environ.get("GEMINI_MODEL") or "gemini-2.5-flash"
-    image_model = os.environ.get("GEMINI_IMAGE_MODEL") or "gemini-2.5-flash-image"
+    image_model = os.environ.get("GEMINI_IMAGE_MODEL") or "gemini-3-pro-image-preview"
     tb = os.environ.get("GEMINI_THINKING_BUDGET")
     thinking_budget: int | None
     if tb is None or tb == "":
