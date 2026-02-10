@@ -29,6 +29,7 @@ class GemStore(ABC):
         system_prompt: str = "",
         input_format: str = "",
         output_format: str = "",
+        enabled: bool | None = None,
         created_by: str | None,
     ) -> Gem:
         raise NotImplementedError
@@ -43,6 +44,17 @@ class GemStore(ABC):
 
     @abstractmethod
     def list(self, *, team_id: str, limit: int = 50) -> list[Gem]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def set_enabled(
+        self,
+        *,
+        team_id: str,
+        name: str,
+        enabled: bool,
+        updated_by: str | None,
+    ) -> Gem | None:
         raise NotImplementedError
 
 
@@ -60,10 +72,13 @@ class InMemoryGemStore(GemStore):
         system_prompt: str = "",
         input_format: str = "",
         output_format: str = "",
+        enabled: bool | None = None,
         created_by: str | None,
     ) -> Gem:
         n = validate_gem_name(name)
         now = datetime.now(timezone.utc)
+        existing = self._data.get((team_id, n))
+        eff_enabled = enabled if enabled is not None else (existing.enabled if existing else True)
         gem = Gem(
             team_id=team_id,
             name=n,
@@ -72,6 +87,7 @@ class InMemoryGemStore(GemStore):
             system_prompt=system_prompt.strip(),
             input_format=input_format.strip(),
             output_format=output_format.strip(),
+            enabled=eff_enabled,
             created_by=created_by,
             created_at=now,
             updated_at=now,
@@ -91,6 +107,35 @@ class InMemoryGemStore(GemStore):
         gems = [g for (tid, _), g in self._data.items() if tid == team_id]
         gems.sort(key=lambda g: g.created_at, reverse=True)
         return gems[: max(1, min(limit, 200))]
+
+    def set_enabled(
+        self,
+        *,
+        team_id: str,
+        name: str,
+        enabled: bool,
+        updated_by: str | None,
+    ) -> Gem | None:
+        n = validate_gem_name(name)
+        g = self._data.get((team_id, n))
+        if not g:
+            return None
+        now = datetime.now(timezone.utc)
+        ng = Gem(
+            team_id=g.team_id,
+            name=g.name,
+            summary=g.summary,
+            body=g.body,
+            system_prompt=g.system_prompt,
+            input_format=g.input_format,
+            output_format=g.output_format,
+            enabled=bool(enabled),
+            created_by=g.created_by,
+            created_at=g.created_at,
+            updated_at=now,
+        )
+        self._data[(team_id, n)] = ng
+        return ng
 
 
 class FirestoreGemStore(GemStore):
@@ -132,6 +177,7 @@ class FirestoreGemStore(GemStore):
         system_prompt: str = "",
         input_format: str = "",
         output_format: str = "",
+        enabled: bool | None = None,
         created_by: str | None,
     ) -> Gem:
         ref = self._doc_ref(team_id=team_id, name=name)
@@ -149,6 +195,8 @@ class FirestoreGemStore(GemStore):
             "created_at": now,
             "updated_at": now,
         }
+        if enabled is not None:
+            payload["enabled"] = bool(enabled)
         ref.set(payload, merge=True)
         return Gem(
             team_id=team_id,
@@ -158,6 +206,7 @@ class FirestoreGemStore(GemStore):
             system_prompt=payload["system_prompt"],
             input_format=payload["input_format"],
             output_format=payload["output_format"],
+            enabled=bool(payload.get("enabled", True)),
             created_by=created_by,
             created_at=now,
             updated_at=now,
@@ -183,6 +232,7 @@ class FirestoreGemStore(GemStore):
             system_prompt=d.get("system_prompt") or "",
             input_format=d.get("input_format") or "",
             output_format=d.get("output_format") or "",
+            enabled=bool(d.get("enabled", True)),
             created_by=d.get("created_by"),
             created_at=created_at,
             updated_at=updated_at,
@@ -218,12 +268,33 @@ class FirestoreGemStore(GemStore):
                     system_prompt=str(d.get("system_prompt") or ""),
                     input_format=str(d.get("input_format") or ""),
                     output_format=str(d.get("output_format") or ""),
+                    enabled=bool(d.get("enabled", True)),
                     created_by=d.get("created_by"),
                     created_at=created_at,
                     updated_at=updated_at,
                 )
             )
         return out
+
+    def set_enabled(
+        self,
+        *,
+        team_id: str,
+        name: str,
+        enabled: bool,
+        updated_by: str | None,
+    ) -> Gem | None:
+        ref = self._doc_ref(team_id=team_id, name=name)
+        snap = ref.get()
+        if not snap.exists:
+            return None
+        now = datetime.now(timezone.utc)
+        payload = {"enabled": bool(enabled), "updated_at": now}
+        if updated_by:
+            payload["updated_by"] = str(updated_by)
+        ref.set(payload, merge=True)
+        # 返り値は最新を読み直す（正確性優先）
+        return self.get(team_id=team_id, name=name)
 
 
 def build_store() -> GemStore:

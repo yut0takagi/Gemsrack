@@ -12,12 +12,15 @@ from ...gems.store import build_store
 from ...gems.service import handle_gem_command, parse_public_flag
 from ...gems.store import validate_gem_name
 from ...gems.formats import INPUT_FORMATS, OUTPUT_FORMATS
+from ...metrics.store import MetricsStore, NoopMetricsStore
 
 
 def register(slack_app) -> None:  # noqa: ANN001
     gemini = build_gemini_client()
     _store = None
     _store_error: str | None = None
+    _metrics: MetricsStore | None = None
+    _metrics_error: str | None = None
 
     def _get_store():  # noqa: ANN001
         nonlocal _store, _store_error
@@ -46,6 +49,27 @@ def register(slack_app) -> None:  # noqa: ANN001
             _store_error = f"{type(e).__name__}: {str(e) or type(e).__name__}"
             print(f"[gem] store init failed: {_store_error}")
             return None, _store_error
+
+    def _get_metrics():  # noqa: ANN001
+        nonlocal _metrics, _metrics_error
+        if _metrics is not None:
+            return _metrics, None
+        if _metrics_error is not None:
+            return NoopMetricsStore(), _metrics_error
+        try:
+            shared = current_app.extensions.get("metrics_store")
+            shared_err = current_app.extensions.get("metrics_store_error")
+            if shared is not None:
+                _metrics = shared
+                return _metrics, None
+            if shared_err:
+                _metrics_error = str(shared_err)
+                return NoopMetricsStore(), _metrics_error
+        except Exception:
+            pass
+        _metrics = NoopMetricsStore()
+        _metrics_error = "metrics store is not initialized"
+        return _metrics, _metrics_error
 
     @slack_app.command("/gem")
     def gem_command(ack, respond, command, client):  # noqa: ANN001
@@ -90,6 +114,15 @@ def register(slack_app) -> None:  # noqa: ANN001
                 n = validate_gem_name(name)
             except ValueError:
                 return False
+
+            # 無効化されているGemはモーダルを開かない
+            try:
+                g = store.get(team_id=team_id, name=n)
+                if g and not bool(getattr(g, "enabled", True)):
+                    respond(f"Gem `{n}` は現在無効化されています（管理者に確認してください）。")
+                    return True
+            except Exception:
+                pass
 
             private_metadata = json.dumps(
                 {
@@ -332,6 +365,7 @@ def register(slack_app) -> None:  # noqa: ANN001
             return
 
         try:
+            metrics_store, _ = _get_metrics()
             result = handle_gem_command(
                 store=store,
                 team_id=team_id,
@@ -340,6 +374,7 @@ def register(slack_app) -> None:  # noqa: ANN001
                 gemini=gemini,
                 slack_client=client,
                 channel_id=command.get("channel_id"),
+                metrics_store=metrics_store,
             )
         except Exception as e:
             print(f"[gem] command error: {type(e).__name__} {e}")
@@ -494,6 +529,7 @@ def register(slack_app) -> None:  # noqa: ANN001
                     gemini=gemini,
                     slack_client=client,
                     channel_id=channel_id,
+                    metrics_store=metrics_store,
                 )
 
                 if not channel_id or not user_id:

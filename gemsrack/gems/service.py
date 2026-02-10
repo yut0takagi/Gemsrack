@@ -77,6 +77,7 @@ def handle_gem_command(
     gemini=None,
     slack_client=None,  # Slack WebClient（画像生成時のアップロードに使用。任意）
     channel_id: str | None = None,
+    metrics_store=None,
 ) -> GemCommandResult:  # noqa: ANN001
     raw = (text or "").strip()
     if not raw:
@@ -173,16 +174,42 @@ def handle_gem_command(
         gem = store.get(team_id=team_id, name=n)
         if not gem:
             return GemCommandResult(ok=False, message=f"Gem **{n}** が見つかりません。`/gem list` で確認できます。")
+        if not bool(getattr(gem, "enabled", True)):
+            try:
+                if metrics_store is not None:
+                    metrics_store.record_gem_run(team_id=team_id, gem_name=n, user_id=user_id, public=public, ok=False)
+            except Exception:
+                pass
+            return GemCommandResult(ok=False, message=f"Gem **{n}** は現在無効化されています（管理者に確認してください）。")
         if gem.body.strip():
+            try:
+                if metrics_store is not None:
+                    metrics_store.record_gem_run(team_id=team_id, gem_name=n, user_id=user_id, public=public, ok=True)
+            except Exception:
+                pass
             return GemCommandResult(ok=True, message=gem.body, public=public)
         # 画像生成 Gem の特例ハンドリング
         if (gem.output_format or "") == "image_url":
             ok, img_bytes, mime, msg = execute_ai_image_gem(gem=gem, user_input=user_input, gemini=gemini)
             if not ok or not img_bytes:
+                try:
+                    if metrics_store is not None:
+                        metrics_store.record_gem_run(
+                            team_id=team_id, gem_name=n, user_id=user_id, public=public, ok=False
+                        )
+                except Exception:
+                    pass
                 return GemCommandResult(ok=False, message=msg or "画像生成に失敗しました。")
 
             # Slack にアップロード（公開: チャンネル / 非公開: DM）
             if slack_client is None:
+                try:
+                    if metrics_store is not None:
+                        metrics_store.record_gem_run(
+                            team_id=team_id, gem_name=n, user_id=user_id, public=public, ok=True
+                        )
+                except Exception:
+                    pass
                 return GemCommandResult(ok=True, message="画像を生成しましたが、Slack へのアップロード権限がありません（管理者に `files:write` 追加を依頼してください）。")
             try:
                 import io
@@ -214,16 +241,42 @@ def handle_gem_command(
                         title=f"Gem: {n}",
                     )
                 if public:
+                    try:
+                        if metrics_store is not None:
+                            metrics_store.record_gem_run(
+                                team_id=team_id, gem_name=n, user_id=user_id, public=True, ok=True
+                            )
+                    except Exception:
+                        pass
                     return GemCommandResult(ok=True, message=f"Gem `{n}` の画像をチャンネルにアップロードしました。", public=True)
+                try:
+                    if metrics_store is not None:
+                        metrics_store.record_gem_run(
+                            team_id=team_id, gem_name=n, user_id=user_id, public=False, ok=True
+                        )
+                except Exception:
+                    pass
                 return GemCommandResult(ok=True, message=f"Gem `{n}` の画像をDMに送信しました。", public=False)
             except Exception as e:
                 hint = ""
                 err = type(e).__name__
                 if "missing_scope" in str(e) or "not_allowed_token_type" in str(e):
                     hint = "\n必要スコープ: `files:write`（DM送信には `im:write`）。追加後、アプリを再インストール。"
+                try:
+                    if metrics_store is not None:
+                        metrics_store.record_gem_run(
+                            team_id=team_id, gem_name=n, user_id=user_id, public=public, ok=False
+                        )
+                except Exception:
+                    pass
                 return GemCommandResult(ok=False, message=f"画像のアップロードに失敗しました: `{err}`{hint}")
 
         ok, msg = execute_ai_gem(gem=gem, user_input=user_input, gemini=gemini)
+        try:
+            if metrics_store is not None:
+                metrics_store.record_gem_run(team_id=team_id, gem_name=n, user_id=user_id, public=public, ok=bool(ok))
+        except Exception:
+            pass
         return GemCommandResult(ok=ok, message=msg, public=public if ok else False)
 
     if sub == "list":
@@ -269,7 +322,19 @@ def handle_gem_command(
     gem = store.get(team_id=team_id, name=n)
     if not gem:
         return GemCommandResult(ok=False, message=f"Gem **{n}** が見つかりません。`/gem list` で確認できます。")
+    if not bool(getattr(gem, "enabled", True)):
+        try:
+            if metrics_store is not None:
+                metrics_store.record_gem_run(team_id=team_id, gem_name=n, user_id=user_id, public=public, ok=False)
+        except Exception:
+            pass
+        return GemCommandResult(ok=False, message=f"Gem **{n}** は現在無効化されています（管理者に確認してください）。")
     if gem.body.strip():
+        try:
+            if metrics_store is not None:
+                metrics_store.record_gem_run(team_id=team_id, gem_name=n, user_id=user_id, public=public, ok=True)
+        except Exception:
+            pass
         return GemCommandResult(ok=True, message=gem.body, public=public)
     # `/gem <name> ...` も、モーダル経由では改行を保持したいので raw から復元する
     user_input = _raw_input_for_default_run(raw, sub)
@@ -279,8 +344,18 @@ def handle_gem_command(
     if (gem.output_format or "") == "image_url":
         ok, img_bytes, mime, msg = execute_ai_image_gem(gem=gem, user_input=user_input, gemini=gemini)
         if not ok or not img_bytes:
+            try:
+                if metrics_store is not None:
+                    metrics_store.record_gem_run(team_id=team_id, gem_name=n, user_id=user_id, public=public, ok=False)
+            except Exception:
+                pass
             return GemCommandResult(ok=False, message=msg or "画像生成に失敗しました。")
         if slack_client is None:
+            try:
+                if metrics_store is not None:
+                    metrics_store.record_gem_run(team_id=team_id, gem_name=n, user_id=user_id, public=public, ok=True)
+            except Exception:
+                pass
             return GemCommandResult(ok=True, message="画像を生成しましたが、Slack へのアップロード権限がありません（管理者に `files:write` 追加を依頼してください）。")
         try:
             import io
@@ -310,16 +385,36 @@ def handle_gem_command(
                     title=f"Gem: {n}",
                 )
             if public:
+                try:
+                    if metrics_store is not None:
+                        metrics_store.record_gem_run(team_id=team_id, gem_name=n, user_id=user_id, public=True, ok=True)
+                except Exception:
+                    pass
                 return GemCommandResult(ok=True, message=f"Gem `{n}` の画像をチャンネルにアップロードしました。", public=True)
+            try:
+                if metrics_store is not None:
+                    metrics_store.record_gem_run(team_id=team_id, gem_name=n, user_id=user_id, public=False, ok=True)
+            except Exception:
+                pass
             return GemCommandResult(ok=True, message=f"Gem `{n}` の画像をDMに送信しました。", public=False)
         except Exception as e:
             hint = ""
             err = type(e).__name__
             if "missing_scope" in str(e) or "not_allowed_token_type" in str(e):
                 hint = "\n必要スコープ: `files:write`（DM送信には `im:write`）。追加後、アプリを再インストール。"
+            try:
+                if metrics_store is not None:
+                    metrics_store.record_gem_run(team_id=team_id, gem_name=n, user_id=user_id, public=public, ok=False)
+            except Exception:
+                pass
             return GemCommandResult(ok=False, message=f"画像のアップロードに失敗しました: `{err}`{hint}")
 
     ok, msg = execute_ai_gem(gem=gem, user_input=user_input, gemini=gemini)
+    try:
+        if metrics_store is not None:
+            metrics_store.record_gem_run(team_id=team_id, gem_name=n, user_id=user_id, public=public, ok=bool(ok))
+    except Exception:
+        pass
     return GemCommandResult(ok=ok, message=msg, public=public if ok else False)
 
 

@@ -18,6 +18,8 @@ class Gem:
     system_prompt: str
     input_format: str
     output_format: str
+    # Slack上で実行可能か（adminでON/OFF）
+    enabled: bool
     created_by: str | None
     created_at: datetime
     updated_at: datetime

@@ -31,12 +31,19 @@ def build_slack(settings: Settings) -> SlackBuildResult:
             error="依存関係が未導入です（pip install -r requirements.txt）",
         )
 
-    slack_app = App(
-        token=settings.slack_bot_token,
-        signing_secret=settings.slack_signing_secret,
-        # Slack は 3 秒以内に 200 を期待するため、長処理（AI生成等）はレスポンス後に実行する
-        process_before_response=False,
-    )
+    try:
+        slack_app = App(
+            token=settings.slack_bot_token,
+            signing_secret=settings.slack_signing_secret,
+            # Slack は 3 秒以内に 200 を期待するため、長処理（AI生成等）はレスポンス後に実行する
+            process_before_response=False,
+        )
+    except Exception as e:
+        # invalid_auth 等で Bolt が起動時に例外を投げることがある。
+        # Slack が使えなくても /health や Web UI / API は起動できるようにする。
+        err = f"{type(e).__name__}: {str(e) or type(e).__name__}"
+        print(f"[slack] build failed: {err}")
+        return SlackBuildResult(app=None, handler=None, error=err)
 
     register_all(slack_app)
     handler = SlackRequestHandler(slack_app)

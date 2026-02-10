@@ -8,6 +8,7 @@
 - **エンドポイント**: `POST /slack/events`
 - **ヘルスチェック**: `GET /health`
 - **Web UI**: `GET /`（ReactでGem一覧を閲覧）
+- **Admin UI**: `GET /admin/`（管理画面。ログイン必須）
 - **必要な環境変数**:
   - `SLACK_BOT_TOKEN`（`xoxb-...`）
   - `SLACK_SIGNING_SECRET`
@@ -242,6 +243,28 @@ GitHub リポジトリの **Settings → Secrets and variables → Actions** に
 - Cloud Run では `GEM_STORE_BACKEND=firestore` を推奨（初期化失敗時に起動を止めて Gem 消失を防止）
 
 Cloud Run の実行 Service Account に Firestore 権限が必要です（例: `roles/datastore.user`）。
+
+## 利用計測（KPI）
+
+Gemの実行回数をKPIとして計測するため、実行時に日次カウントを保存します（Cloud RunではFirestore推奨）。
+
+- **集計API**: `GET /api/metrics/gem-usage?days=30&limit=20`
+- **保存先切替**: `GEM_METRICS_BACKEND`（`auto` / `firestore` / `memory` / `none`）
+
+## Admin（Gem管理）
+
+Gemの **Slackでの実行可否（enable/disable）** や、より詳細な利用状況を見るために Admin API / UI を用意しています。
+
+- **Web UI**: `GET /admin/`（公開UIとは別ページとして分離）
+- **ログイン必須**: `ADMIN_PASSWORD`（パスワード）
+  - Cloud Run の環境変数に `ADMIN_PASSWORD` を設定してください（推測されにくい文字列）
+  - あわせて `SECRET_KEY` も設定してください（セッション署名用）
+  - UIのログイン欄にパスワードを入れると、**セッション（HttpOnly Cookie）** でログイン状態になります
+- **Admin API**
+  - `GET /api/admin/gems`（Gem一覧 + enabled）
+  - `PATCH /api/admin/gems/<name>`（`{"enabled": true/false}`）
+  - `GET /api/admin/usage?days=30`
+  - `POST /api/admin/login` / `POST /api/admin/logout` / `GET /api/admin/me`
 
 ### Gemini API（AI Gem 実行）
 - Cloud Run の環境変数 `GEMINI_API_KEY` を設定してください

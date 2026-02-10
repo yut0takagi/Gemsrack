@@ -27,6 +27,19 @@ def index() -> Response:
         )
     return send_from_directory(dist, "index.html")
 
+@web_bp.get("/admin")
+@web_bp.get("/admin/")
+def admin_index() -> Response:
+    dist = _dist_dir()
+    admin_html = dist / "admin" / "index.html"
+    if not admin_html.exists():
+        return Response(
+            "Admin frontend is not built. Build the React app and include it in the container.\n",
+            status=404,
+            content_type="text/plain; charset=utf-8",
+        )
+    return send_from_directory(dist, "admin/index.html")
+
 
 @web_bp.get("/<path:path>")
 def static_or_spa(path: str) -> Response:
@@ -38,6 +51,17 @@ def static_or_spa(path: str) -> Response:
     target = dist / path
     if target.exists() and target.is_file():
         return send_from_directory(dist, path)
+
+    # /admin 配下は admin/index.html にフォールバック（公開UIと分離）
+    if path == "admin" or path.startswith("admin/"):
+        admin_html = dist / "admin" / "index.html"
+        if admin_html.exists():
+            return send_from_directory(dist, "admin/index.html")
+        return Response(
+            "Admin frontend is not built. Build the React app and include it in the container.\n",
+            status=404,
+            content_type="text/plain; charset=utf-8",
+        )
 
     # SPA fallback（React Router を導入したくなった時も崩れないように）
     index_html = dist / "index.html"
