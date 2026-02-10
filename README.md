@@ -21,7 +21,7 @@ pip install -r requirements.txt
 export SLACK_BOT_TOKEN="xoxb-..."
 export SLACK_SIGNING_SECRET="..."
 export GEMINI_API_KEY="..." # AI Gem を実行する場合
-export GEMINI_IMAGE_MODEL="gemini-2.5-flash-image-preview" # 画像生成Gemで使用（任意）
+export GEMINI_IMAGE_MODEL="gemini-2.5-flash-image" # 画像生成Gemで使用（任意）
 
 python main.py
 curl -sS localhost:8080/health
@@ -188,10 +188,12 @@ GitHub リポジトリの **Settings → Secrets and variables → Actions** に
 ### 保存先（永続化）
 - **Cloud Run**: Firestore（推奨 / 自動で使います）
 - **ローカル**: 認証が無い場合はメモリにフォールバック（再起動で消えます）
+- 環境変数 `GEM_STORE_BACKEND` で保存先を切り替え可能（`auto` / `firestore` / `memory`）
+- Cloud Run では `GEM_STORE_BACKEND=firestore` を推奨（初期化失敗時に起動を止めて Gem 消失を防止）
 
 Cloud Run の実行 Service Account に Firestore 権限が必要です（例: `roles/datastore.user`）。
 
 ### Gemini API（AI Gem 実行）
 - Cloud Run の環境変数 `GEMINI_API_KEY` を設定してください
 - 省略時はデフォルトで `GEMINI_MODEL=gemini-2.5-flash` を使用します
-- 画像生成Gemは `GEMINI_IMAGE_MODEL` を使用します（既定: `gemini-2.5-flash-image-preview`）
+- 画像生成Gemは `GEMINI_IMAGE_MODEL` を使用します（既定: `gemini-2.5-flash-image`）

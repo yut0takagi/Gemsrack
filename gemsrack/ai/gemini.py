@@ -11,7 +11,7 @@ import base64
 class GeminiClient:
     api_key: str
     model: str = "gemini-2.5-flash"
-    image_model: str = "gemini-2.5-flash-image-preview"
+    image_model: str = "gemini-2.5-flash-image"
     thinking_budget: int | None = 0  # 0 で thinking 無効（コスト/レイテンシ優先）
 
     def generate_text(
@@ -74,7 +74,10 @@ class GeminiClient:
 
         Returns (image_bytes, mime_type).
         """
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.image_model}:generateContent"
+        def _call(model_name: str) -> requests.Response:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
+            return requests.post(url, headers=headers, json=payload, timeout=90)
+
         headers = {
             "x-goog-api-key": self.api_key,
             "Content-Type": "application/json",
@@ -92,7 +95,11 @@ class GeminiClient:
                 "imageConfig": {"aspectRatio": aspect_ratio},
             },
         }
-        r = requests.post(url, headers=headers, json=payload, timeout=90)
+        r = _call(self.image_model)
+        if not r.ok and r.status_code == 404 and self.image_model != "gemini-2.5-flash-image":
+            # 旧モデル名や廃止モデルが設定されている場合、安定版に 1 回だけフォールバックする。
+            r = _call("gemini-2.5-flash-image")
+
         if not r.ok:
             detail = (r.text or "").strip().replace("\n", " ")
             detail = detail[:500]
@@ -143,7 +150,7 @@ def build_gemini_client() -> GeminiClient | None:
     if not api_key:
         return None
     model = os.environ.get("GEMINI_MODEL") or "gemini-2.5-flash"
-    image_model = os.environ.get("GEMINI_IMAGE_MODEL") or "gemini-2.5-flash-image-preview"
+    image_model = os.environ.get("GEMINI_IMAGE_MODEL") or "gemini-2.5-flash-image"
     tb = os.environ.get("GEMINI_THINKING_BUDGET")
     thinking_budget: int | None
     if tb is None or tb == "":

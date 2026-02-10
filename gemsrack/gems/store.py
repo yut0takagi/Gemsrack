@@ -219,10 +219,32 @@ class FirestoreGemStore(GemStore):
 
 def build_store() -> GemStore:
     """
-    Cloud Run では Firestore（永続）を使い、ローカルは依存/認証が無ければメモリにフォールバック。
+    `GEM_STORE_BACKEND` で保存先を選ぶ:
+    - `firestore`: Firestore を必須化（失敗時は例外）
+    - `memory`: インメモリ（再起動/再デプロイで消える）
+    - `auto`(既定): Firestore を試し、失敗時はローカルのみ memory にフォールバック
+
+    Cloud Run では `auto` 時も Firestore 失敗で例外にし、
+    永続化の取りこぼし（更新時に Gem が消える）を防ぐ。
     """
+    backend = (os.environ.get("GEM_STORE_BACKEND") or "auto").strip().lower()
+
+    if backend == "memory":
+        return InMemoryGemStore()
+    if backend == "firestore":
+        return FirestoreGemStore()
+
+    if backend != "auto":
+        raise RuntimeError("GEM_STORE_BACKEND は `auto` / `firestore` / `memory` のいずれかにしてください")
+
+    in_cloud_run = bool(os.environ.get("K_SERVICE"))
     try:
         return FirestoreGemStore()
-    except Exception:
+    except Exception as e:
+        if in_cloud_run:
+            raise RuntimeError(
+                "Cloud Run で Firestore を初期化できません。"
+                " `GEM_STORE_BACKEND=firestore` と Firestore 権限/認証設定を確認してください。"
+            ) from e
+        print(f"[gem] Firestore unavailable; falling back to memory store: {type(e).__name__} {e}")
         return InMemoryGemStore()
-
