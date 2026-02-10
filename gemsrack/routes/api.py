@@ -11,6 +11,7 @@ api_bp = Blueprint("api", __name__, url_prefix="/api")
 
 
 def _dt(v: datetime | None) -> str | None:
+    # Json用に日時を変換 ex) "created_at": "2026-02-10T12:34:56+00:00"..ISO Format
     if v is None:
         return None
     # ISO 8601 (例: 2026-02-10T12:34:56.789+00:00)
@@ -18,6 +19,7 @@ def _dt(v: datetime | None) -> str | None:
 
 
 def _store() -> GemStore:
+    # データの読み書きを担当
     store = current_app.extensions.get("gem_store")
     if store is None:
         err = current_app.extensions.get("gem_store_error") or "Gem store is not initialized"
@@ -25,6 +27,7 @@ def _store() -> GemStore:
     return store  # type: ignore[return-value]
 
 def _store_or_503() -> tuple[GemStore | None, Response | None]:
+    # GemStoreが利用可能か確認し、利用不可なら503エラーを返す
     try:
         return _store(), None
     except Exception as e:

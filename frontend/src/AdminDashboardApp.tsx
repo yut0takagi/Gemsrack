@@ -1,18 +1,33 @@
 import { useEffect, useState } from 'react'
 import { AdminPanel } from './AdminPanel'
 import { VantaHaloBackground } from './VantaHaloBackground'
-import { adminMe } from './api'
+import { adminLogout, adminMe } from './api'
 
-export function AdminApp() {
+export function AdminDashboardApp() {
   const [adminEnabled, setAdminEnabled] = useState(true)
+  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
     const ac = new AbortController()
     adminMe({ signal: ac.signal })
-      .then((r) => setAdminEnabled(Boolean(r.enabled)))
+      .then((r) => {
+        setAdminEnabled(Boolean(r.enabled))
+        setIsAdmin(Boolean(r.admin))
+        if (r.enabled && !r.admin) {
+          window.location.href = '/admin/login'
+        }
+      })
       .catch(() => setAdminEnabled(false))
     return () => ac.abort()
   }, [])
+
+  async function logout() {
+    try {
+      await adminLogout()
+    } finally {
+      window.location.href = '/admin/login'
+    }
+  }
 
   return (
     <div className="relative min-h-screen text-slate-100">
@@ -28,16 +43,25 @@ export function AdminApp() {
                 </span>
               </div>
               <div className="text-sm text-slate-300">
-                {adminEnabled ? '管理画面（ログイン必須）' : 'Adminは無効です（ADMIN_PASSWORD未設定）'}
+                {adminEnabled ? 'Dashboard' : 'Adminは無効です（ADMIN_PASSWORD/SECRET_KEY未設定）'}
               </div>
             </div>
 
-            <a
-              href="/"
-              className="inline-flex h-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-slate-100 hover:bg-white/10"
-            >
-              公開ページへ
-            </a>
+            <div className="flex flex-wrap items-center gap-2">
+              <a
+                href="/"
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-slate-100 hover:bg-white/10"
+              >
+                公開ページへ
+              </a>
+              <button
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-slate-100 hover:bg-white/10 disabled:opacity-60"
+                onClick={() => void logout()}
+                disabled={!isAdmin}
+              >
+                ログアウト
+              </button>
+            </div>
           </div>
         </div>
 

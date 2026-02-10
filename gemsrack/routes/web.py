@@ -27,18 +27,38 @@ def index() -> Response:
         )
     return send_from_directory(dist, "index.html")
 
-@web_bp.get("/admin")
-@web_bp.get("/admin/")
-def admin_index() -> Response:
+def _admin_html(kind: str) -> Path:
+    # kind: "login" | "dashboard"
     dist = _dist_dir()
-    admin_html = dist / "admin" / "index.html"
-    if not admin_html.exists():
+    return dist / "admin" / kind / "index.html"
+
+
+@web_bp.get("/admin/login")
+@web_bp.get("/admin/login/")
+def admin_login() -> Response:
+    dist = _dist_dir()
+    html = _admin_html("login")
+    if not html.exists():
         return Response(
-            "Admin frontend is not built. Build the React app and include it in the container.\n",
+            "Admin login frontend is not built. Build the React app and include it in the container.\n",
             status=404,
             content_type="text/plain; charset=utf-8",
         )
-    return send_from_directory(dist, "admin/index.html")
+    return send_from_directory(dist, "admin/login/index.html")
+
+
+@web_bp.get("/admin/dashboard")
+@web_bp.get("/admin/dashboard/")
+def admin_dashboard() -> Response:
+    dist = _dist_dir()
+    html = _admin_html("dashboard")
+    if not html.exists():
+        return Response(
+            "Admin dashboard frontend is not built. Build the React app and include it in the container.\n",
+            status=404,
+            content_type="text/plain; charset=utf-8",
+        )
+    return send_from_directory(dist, "admin/dashboard/index.html")
 
 
 @web_bp.get("/<path:path>")
@@ -52,13 +72,29 @@ def static_or_spa(path: str) -> Response:
     if target.exists() and target.is_file():
         return send_from_directory(dist, path)
 
-    # /admin 配下は admin/index.html にフォールバック（公開UIと分離）
-    if path == "admin" or path.startswith("admin/"):
-        admin_html = dist / "admin" / "index.html"
-        if admin_html.exists():
-            return send_from_directory(dist, "admin/index.html")
+    # /admin 配下は login/dashboard にのみルーティング（完全分離）
+    if path == "admin" or path == "admin/":
+        # 明示的に login へ誘導（相対/絶対の混乱を避けるため 302）
+        resp = Response("", status=302)
+        resp.headers["Location"] = "/admin/login"
+        return resp
+
+    if path == "admin/login" or path.startswith("admin/login/"):
+        html = _admin_html("login")
+        if html.exists():
+            return send_from_directory(dist, "admin/login/index.html")
         return Response(
-            "Admin frontend is not built. Build the React app and include it in the container.\n",
+            "Admin login frontend is not built. Build the React app and include it in the container.\n",
+            status=404,
+            content_type="text/plain; charset=utf-8",
+        )
+
+    if path == "admin/dashboard" or path.startswith("admin/dashboard/"):
+        html = _admin_html("dashboard")
+        if html.exists():
+            return send_from_directory(dist, "admin/dashboard/index.html")
+        return Response(
+            "Admin dashboard frontend is not built. Build the React app and include it in the container.\n",
             status=404,
             content_type="text/plain; charset=utf-8",
         )

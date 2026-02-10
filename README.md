@@ -8,7 +8,9 @@
 - **エンドポイント**: `POST /slack/events`
 - **ヘルスチェック**: `GET /health`
 - **Web UI**: `GET /`（ReactでGem一覧を閲覧）
-- **Admin UI**: `GET /admin/`（管理画面。ログイン必須）
+- **Admin UI**:
+  - `GET /admin/login`（ログインページ）
+  - `GET /admin/dashboard`（管理画面）
 - **必要な環境変数**:
   - `SLACK_BOT_TOKEN`（`xoxb-...`）
   - `SLACK_SIGNING_SECRET`
@@ -255,7 +257,9 @@ Gemの実行回数をKPIとして計測するため、実行時に日次カウ�
 
 Gemの **Slackでの実行可否（enable/disable）** や、より詳細な利用状況を見るために Admin API / UI を用意しています。
 
-- **Web UI**: `GET /admin/`（公開UIとは別ページとして分離）
+- **Web UI（公開UIと完全分離）**
+  - `GET /admin/login`
+  - `GET /admin/dashboard`
 - **ログイン必須**: `ADMIN_PASSWORD`（パスワード）
   - Cloud Run の環境変数に `ADMIN_PASSWORD` を設定してください（推測されにくい文字列）
   - あわせて `SECRET_KEY` も設定してください（セッション署名用）
