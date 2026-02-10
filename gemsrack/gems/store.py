@@ -242,9 +242,12 @@ def build_store() -> GemStore:
         return FirestoreGemStore()
     except Exception as e:
         if in_cloud_run:
+            detail = (str(e) or type(e).__name__).strip().replace("\n", " ")
+            detail = detail[:200]
             raise RuntimeError(
                 "Cloud Run で Firestore を初期化できません。"
                 " `GEM_STORE_BACKEND=firestore` と Firestore 権限/認証設定を確認してください。"
+                f" (原因: {type(e).__name__}: {detail})"
             ) from e
         print(f"[gem] Firestore unavailable; falling back to memory store: {type(e).__name__} {e}")
         return InMemoryGemStore()

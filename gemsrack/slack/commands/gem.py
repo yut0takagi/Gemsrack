@@ -13,12 +13,39 @@ from ...gems.formats import INPUT_FORMATS, OUTPUT_FORMATS
 
 
 def register(slack_app) -> None:  # noqa: ANN001
-    store = build_store()
     gemini = build_gemini_client()
+    _store = None
+    _store_error: str | None = None
+
+    def _get_store():  # noqa: ANN001
+        nonlocal _store, _store_error
+        if _store is not None:
+            return _store, None
+        if _store_error is not None:
+            return None, _store_error
+        try:
+            _store = build_store()
+            return _store, None
+        except Exception as e:
+            _store_error = f"{type(e).__name__}: {str(e) or type(e).__name__}"
+            print(f"[gem] store init failed: {_store_error}")
+            return None, _store_error
 
     @slack_app.command("/gem")
     def gem_command(ack, respond, command, client):  # noqa: ANN001
         ack()
+        store, store_err = _get_store()
+        if store is None:
+            respond(
+                "Gem の保存先（Firestore）の初期化に失敗したため、/gem を利用できません。\n"
+                f"原因: `{store_err or 'unknown'}`\n"
+                "\n"
+                "対処:\n"
+                "- Cloud Run の実行 Service Account に `roles/datastore.user` を付与\n"
+                "- Firestore データベース（default）を作成/有効化\n"
+                "- すぐ動かすだけなら `GEM_STORE_BACKEND=memory` を設定（※再デプロイで消えます）\n"
+            )
+            return
         team_id = command.get("team_id") or command.get("team_domain") or "unknown"
         user_id = command.get("user_id")
         text = command.get("text", "")
@@ -231,6 +258,18 @@ def register(slack_app) -> None:  # noqa: ANN001
 
         def _save_and_notify() -> None:
             try:
+                store, store_err = _get_store()
+                if store is None:
+                    if channel_id and user_id:
+                        client.chat_postEphemeral(
+                            channel=channel_id,
+                            user=user_id,
+                            text=(
+                                "Gem の保存先（Firestore）の初期化に失敗したため、保存できません。\n"
+                                f"原因: `{store_err or 'unknown'}`"
+                            ),
+                        )
+                    return
                 # ここでは遅くても良い（Slackへの ack は完了済み）
                 store.upsert(
                     team_id=team_id,

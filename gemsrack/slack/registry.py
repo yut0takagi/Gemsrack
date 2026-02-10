@@ -2,18 +2,17 @@ from __future__ import annotations
 
 import importlib
 import pkgutil
-from types import ModuleType
 
 
-def _iter_submodules(package_name: str) -> list[ModuleType]:
-    """package_name 配下の全サブモジュールを import して返す（再帰なし）"""
+def _iter_submodule_names(package_name: str) -> list[str]:
+    """package_name 配下の全サブモジュール名を返す（再帰なし）"""
     package = importlib.import_module(package_name)
-    modules: list[ModuleType] = []
+    names: list[str] = []
     for m in pkgutil.iter_modules(package.__path__, package.__name__ + "."):  # type: ignore[attr-defined]
         if m.ispkg:
             continue
-        modules.append(importlib.import_module(m.name))
-    return modules
+        names.append(m.name)
+    return names
 
 
 def register_all(slack_app) -> None:  # noqa: ANN001
@@ -22,7 +21,17 @@ def register_all(slack_app) -> None:  # noqa: ANN001
     `register(slack_app)` があれば呼び出して登録する。
     """
     for pkg in ("gemsrack.slack.commands", "gemsrack.slack.events"):
-        for mod in _iter_submodules(pkg):
+        for mod_name in _iter_submodule_names(pkg):
+            try:
+                mod = importlib.import_module(mod_name)
+            except Exception as e:
+                print(f"[slack] failed to import {mod_name}: {type(e).__name__} {e}")
+                continue
+
             register = getattr(mod, "register", None)
-            if callable(register):
+            if not callable(register):
+                continue
+            try:
                 register(slack_app)
+            except Exception as e:
+                print(f"[slack] failed to register {mod_name}: {type(e).__name__} {e}")
