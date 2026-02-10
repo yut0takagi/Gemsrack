@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import './App.css'
 import type { GemDetail, GemSummary } from './api'
 import { getGem, listGems } from './api'
+import { VantaHaloBackground } from './VantaHaloBackground'
 
 function App() {
   const TEAM_ID_KEY = 'gemsrack_team_id'
@@ -81,162 +81,205 @@ function App() {
   }
 
   return (
-    <div className="container">
-      <div className="panel">
-        <div className="panelBody">
-          <div className="row" style={{ justifyContent: 'space-between' }}>
-            <div>
-              <p className="title" style={{ marginBottom: 2 }}>
-                Gemsrack
-              </p>
-              <p className="muted" style={{ margin: 0 }}>
-                Gem 一覧（Slack外から閲覧）
-              </p>
+    <div className="relative min-h-screen text-slate-100">
+      <VantaHaloBackground />
+
+      <div className="mx-auto max-w-6xl px-4 py-6">
+        <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md">
+          <div className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1">
+              <div className="text-lg font-semibold tracking-wide">
+                <span className="bg-gradient-to-r from-cyan-300 via-indigo-300 to-fuchsia-300 bg-clip-text text-transparent">
+                  Gemsrack
+                </span>
+              </div>
+              <div className="text-sm text-slate-300">Gem 一覧（Slack外から閲覧）</div>
             </div>
-            <div className="row">
-              <button className="button secondary" onClick={() => refresh()} disabled={loading}>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-slate-100 hover:bg-white/10 disabled:opacity-60"
+                onClick={() => refresh()}
+                disabled={loading}
+              >
                 更新
               </button>
             </div>
           </div>
 
-          <div style={{ height: 12 }} />
+          <div className="border-t border-white/10 p-5">
+            <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-end">
+              <label className="space-y-1">
+                <div className="text-xs font-medium text-slate-300">Team ID（任意 / 単一WSなら空でもOK）</div>
+                <input
+                  className="h-10 w-full rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-300/20"
+                  value={teamIdInput}
+                  placeholder="例: T0123456789"
+                  onChange={(e) => setTeamIdInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') applyTeamId()
+                  }}
+                />
+              </label>
 
-          <div className="row">
-            <div className="field" style={{ minWidth: 260, flex: 1 }}>
-              <div className="label">Team ID（任意 / 単一ワークスペースなら空でもOK）</div>
-              <input
-                className="input"
-                value={teamIdInput}
-                placeholder="例: T0123456789"
-                onChange={(e) => setTeamIdInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') applyTeamId()
-                }}
-              />
-            </div>
-            <div style={{ height: 18 }} />
-            <button className="button" onClick={applyTeamId} disabled={loading}>
-              適用
-            </button>
+              <button
+                className="inline-flex h-10 items-center justify-center rounded-xl bg-gradient-to-r from-cyan-400/90 via-indigo-400/90 to-fuchsia-400/90 px-4 text-sm font-semibold text-black hover:from-cyan-300 hover:via-indigo-300 hover:to-fuchsia-300 disabled:opacity-60"
+                onClick={applyTeamId}
+                disabled={loading}
+              >
+                適用
+              </button>
 
-            <div className="field" style={{ minWidth: 260, flex: 1 }}>
-              <div className="label">検索</div>
-              <input
-                className="input"
-                value={query}
-                placeholder="name / summary で絞り込み"
-                onChange={(e) => setQuery(e.target.value)}
-              />
+              <label className="space-y-1">
+                <div className="text-xs font-medium text-slate-300">検索</div>
+                <input
+                  className="h-10 w-full rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:border-indigo-300/50 focus:ring-2 focus:ring-indigo-300/20"
+                  value={query}
+                  placeholder="name / summary で絞り込み"
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              </label>
             </div>
+
+            {error ? (
+              <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
+                {error}
+              </div>
+            ) : null}
           </div>
-
-          {error ? (
-            <p style={{ marginTop: 12, marginBottom: 0, color: '#b91c1c' }}>{error}</p>
-          ) : null}
         </div>
-      </div>
 
-      <div style={{ height: 16 }} />
-
-      <div className="appShell">
-        <div className="panel">
-          <div className="panelHeader">
-            <div className="row" style={{ justifyContent: 'space-between' }}>
-              <p className="title" style={{ marginBottom: 0 }}>
-                Gem 一覧
-              </p>
-              <p className="muted" style={{ margin: 0 }}>
-                {loading ? '読み込み中…' : `${filtered.length} 件`}
-              </p>
+        <div className="mt-6 grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
+          <section className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md">
+            <div className="flex items-center justify-between p-5">
+              <div className="text-sm font-semibold tracking-wide text-slate-200">Gem 一覧</div>
+              <div className="text-xs text-slate-400">{loading ? '読み込み中…' : `${filtered.length} 件`}</div>
             </div>
-          </div>
-          <div className="panelBody">
-            {filtered.length === 0 ? (
-              <p className="muted" style={{ margin: 0 }}>
-                Gem がありません（または検索条件に一致しません）。
-              </p>
-            ) : (
-              <div className="list">
-                {filtered.map((g) => (
-                  <div
-                    key={g.name}
-                    className={`card ${selectedName === g.name ? 'active' : ''}`}
-                    onClick={() => setSelectedName(g.name)}
-                  >
-                    <div className="row" style={{ justifyContent: 'space-between' }}>
-                      <div className="cardTitle">{g.name}</div>
-                      <div className="muted" style={{ fontSize: 12 }}>
-                        {g.updated_at ? new Date(g.updated_at).toLocaleString() : ''}
-                      </div>
+            <div className="border-t border-white/10 p-3">
+              {filtered.length === 0 ? (
+                <div className="p-3 text-sm text-slate-400">
+                  Gem がありません（または検索条件に一致しません）。
+                </div>
+              ) : (
+                <div className="grid gap-2">
+                  {filtered.map((g) => {
+                    const active = selectedName === g.name
+                    return (
+                      <button
+                        key={g.name}
+                        onClick={() => setSelectedName(g.name)}
+                        className={[
+                          'group w-full rounded-2xl border px-4 py-3 text-left transition',
+                          active
+                            ? 'border-cyan-300/30 bg-cyan-300/10'
+                            : 'border-white/10 bg-black/25 hover:border-white/20 hover:bg-black/35',
+                        ].join(' ')}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate font-mono text-sm font-semibold text-slate-100">
+                              {g.name}
+                            </div>
+                            {g.summary ? (
+                              <div className="mt-1 line-clamp-2 text-xs text-slate-300">
+                                {g.summary}
+                              </div>
+                            ) : (
+                              <div className="mt-1 text-xs text-slate-500">（summaryなし）</div>
+                            )}
+                          </div>
+                          <div className="shrink-0 text-[11px] text-slate-500">
+                            {g.updated_at ? new Date(g.updated_at).toLocaleString() : ''}
+                          </div>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {g.input_format ? (
+                            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-slate-200">
+                              in: {g.input_format}
+                            </span>
+                          ) : null}
+                          {g.output_format ? (
+                            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-slate-200">
+                              out: {g.output_format}
+                            </span>
+                          ) : null}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </section>
+
+          <aside className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md">
+            <div className="p-5">
+              <div className="text-sm font-semibold tracking-wide text-slate-200">詳細</div>
+              <div className="mt-3">
+                {!selectedName ? (
+                  <div className="text-sm text-slate-400">左の一覧から Gem を選択してください。</div>
+                ) : detailLoading ? (
+                  <div className="text-sm text-slate-400">読み込み中…</div>
+                ) : detailError ? (
+                  <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
+                    {detailError}
+                  </div>
+                ) : !selected ? (
+                  <div className="text-sm text-slate-400">データがありません。</div>
+                ) : (
+                  <div className="space-y-4">
+                    <div>
+                      <div className="text-xs font-medium text-slate-400">name</div>
+                      <div className="mt-1 font-mono text-sm font-semibold">{selected.name}</div>
                     </div>
-                    {g.summary ? <div className="muted">{g.summary}</div> : null}
-                    <div className="pillRow">
-                      {g.input_format ? <span className="pill">in: {g.input_format}</span> : null}
-                      {g.output_format ? (
-                        <span className="pill">out: {g.output_format}</span>
+
+                    {selected.summary ? (
+                      <div>
+                        <div className="text-xs font-medium text-slate-400">summary</div>
+                        <div className="mt-1 text-sm text-slate-200">{selected.summary}</div>
+                      </div>
+                    ) : null}
+
+                    {selected.system_prompt ? (
+                      <div>
+                        <div className="text-xs font-medium text-slate-400">system_prompt</div>
+                        <pre className="mt-2 max-h-64 overflow-auto rounded-2xl border border-white/10 bg-black/40 p-3 text-xs leading-relaxed text-slate-200">
+                          {selected.system_prompt}
+                        </pre>
+                      </div>
+                    ) : null}
+
+                    {selected.body ? (
+                      <div>
+                        <div className="text-xs font-medium text-slate-400">body（互換: 静的テキスト）</div>
+                        <pre className="mt-2 max-h-64 overflow-auto rounded-2xl border border-white/10 bg-black/40 p-3 text-xs leading-relaxed text-slate-200">
+                          {selected.body}
+                        </pre>
+                      </div>
+                    ) : null}
+
+                    <div className="flex flex-wrap gap-2">
+                      {selected.input_format ? (
+                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-slate-200">
+                          in: {selected.input_format}
+                        </span>
+                      ) : null}
+                      {selected.output_format ? (
+                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-slate-200">
+                          out: {selected.output_format}
+                        </span>
                       ) : null}
                     </div>
                   </div>
-                ))}
+                )}
               </div>
-            )}
-          </div>
+            </div>
+          </aside>
         </div>
 
-        <div className="panel">
-          <div className="panelHeader">
-            <p className="title" style={{ marginBottom: 0 }}>
-              詳細
-            </p>
-          </div>
-          <div className="panelBody">
-            {!selectedName ? (
-              <p className="muted" style={{ margin: 0 }}>
-                左の一覧から Gem を選択してください。
-              </p>
-            ) : detailLoading ? (
-              <p className="muted" style={{ margin: 0 }}>
-                読み込み中…
-              </p>
-            ) : detailError ? (
-              <p style={{ margin: 0, color: '#b91c1c' }}>{detailError}</p>
-            ) : !selected ? (
-              <p className="muted" style={{ margin: 0 }}>
-                データがありません。
-              </p>
-            ) : (
-              <div style={{ display: 'grid', gap: 10 }}>
-                <div>
-                  <div className="label">name</div>
-                  <div style={{ fontWeight: 700 }}>{selected.name}</div>
-                </div>
-                {selected.summary ? (
-                  <div>
-                    <div className="label">summary</div>
-                    <div>{selected.summary}</div>
-                  </div>
-                ) : null}
-                {selected.system_prompt ? (
-                  <div>
-                    <div className="label">system_prompt</div>
-                    <pre className="pre">{selected.system_prompt}</pre>
-                  </div>
-                ) : null}
-                {selected.body ? (
-                  <div>
-                    <div className="label">body（互換: 静的テキスト）</div>
-                    <pre className="pre">{selected.body}</pre>
-                  </div>
-                ) : null}
-                <div className="row">
-                  {selected.input_format ? <span className="pill">in: {selected.input_format}</span> : null}
-                  {selected.output_format ? <span className="pill">out: {selected.output_format}</span> : null}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+        <footer className="mt-8 text-center text-xs text-slate-500">
+          <span className="font-mono">/api/gems</span> から取得しています
+        </footer>
       </div>
     </div>
   )

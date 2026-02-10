@@ -1,4 +1,0 @@
-/* App固有のスタイルは必要最小限にして、基本は index.css 側で管理 */
-#root {
-  min-height: 100vh;
-}

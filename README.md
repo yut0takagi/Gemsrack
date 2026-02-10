@@ -42,6 +42,19 @@ Gem一覧は JSON API で取得します。
 Slack と同じ Firestore を見せたい場合は、**Slack の team_id** を `GEMSRACK_TEAM_ID` に設定してください
 （単一ワークスペース運用ならこれが一番楽です）。
 
+#### team_id（Workspace ID）の調べ方
+
+以下のどれかが簡単です。
+
+- **Slackをブラウザで開く**: URL が `https://app.slack.com/client/TXXXXXXXXX/...` の形式なら、`TXXXXXXXXX` が team_id です
+- **Slack API（Bot token）で確認**:
+
+```bash
+curl -sS -H "Authorization: Bearer $SLACK_BOT_TOKEN" https://slack.com/api/auth.test | jq
+```
+
+レスポンスの `team_id` が該当します（`jq` が無ければ `| jq` を外してください）。
+
 ```bash
 export GEMSRACK_TEAM_ID="T0123456789" # 任意。未指定なら "local"
 python main.py
