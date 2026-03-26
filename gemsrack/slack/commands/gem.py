@@ -190,7 +190,7 @@ def register(slack_app) -> None:  # noqa: ANN001
                 err = err or "unknown_error"
                 print(f"[gem] run modal open failed: {err} data={data}")
                 hint = ""
-                if err in ("invalid_trigger_id", "trigger_exchanged"):
+                if err in ("invalid_trigger_id", "trigger_exchanged", "expired_trigger_id"):
                     hint = "\n`trigger_id` の期限切れの可能性があります。もう一度コマンドを実行してください。"
                 respond(f"モーダル起動に失敗しました: `{err}`{hint}")
                 return True
@@ -344,7 +344,7 @@ def register(slack_app) -> None:  # noqa: ANN001
                 hint = ""
                 if err in ("missing_scope", "not_allowed_token_type"):
                     hint = "\n必要スコープ: `commands`（＋通知には `chat:write`）。追加後、アプリを再インストール。"
-                elif err in ("invalid_trigger_id", "trigger_exchanged"):
+                elif err in ("invalid_trigger_id", "trigger_exchanged", "expired_trigger_id"):
                     hint = "\n`trigger_id` の期限切れの可能性があります（Cloud Run の cold start 回避に min instances=1 推奨）"
                 elif err == "dispatch_failed":
                     hint = (
