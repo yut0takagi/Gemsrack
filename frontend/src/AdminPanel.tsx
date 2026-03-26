@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { adminGetUsage, adminListGems, adminSetGemEnabled } from './api'
-import type { AdminListGemsResponse, AdminUsageResponse } from './api'
+import { adminGetChannelPosts, adminGetUsage, adminListGems, adminSetGemEnabled } from './api'
+import type { AdminChannelPostsResponse, AdminListGemsResponse, AdminUsageResponse } from './api'
 
 function formatInt(n: number) {
   return new Intl.NumberFormat().format(n)
@@ -27,6 +27,11 @@ export function AdminPanel(props: { teamId?: string } = {}) {
   const [error, setError] = useState<string | null>(null)
   const [gems, setGems] = useState<AdminListGemsResponse['gems']>([])
   const [usage, setUsage] = useState<AdminUsageResponse | null>(null)
+  const [channelId, setChannelId] = useState('')
+  const [postLimit, setPostLimit] = useState(50)
+  const [postsLoading, setPostsLoading] = useState(false)
+  const [postsError, setPostsError] = useState<string | null>(null)
+  const [posts, setPosts] = useState<AdminChannelPostsResponse['posts']>([])
 
   const abortRef = useRef<AbortController | null>(null)
 
@@ -60,6 +65,29 @@ export function AdminPanel(props: { teamId?: string } = {}) {
     void refresh()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamId, days])
+
+  async function refreshPosts() {
+    const cid = channelId.trim()
+    if (!cid) {
+      setPosts([])
+      setPostsError(null)
+      return
+    }
+    setPostsLoading(true)
+    setPostsError(null)
+    try {
+      const res = await adminGetChannelPosts({
+        channelId: cid,
+        teamId: teamId || undefined,
+        limit: Math.max(1, Math.min(postLimit, 200)),
+      })
+      setPosts(res.posts)
+    } catch (e) {
+      setPostsError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setPostsLoading(false)
+    }
+  }
 
   async function toggle(name: string, next: boolean) {
     const prev = gems
@@ -208,6 +236,73 @@ export function AdminPanel(props: { teamId?: string } = {}) {
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md">
+        <div className="flex flex-col gap-3 p-5 md:flex-row md:items-end md:justify-between">
+          <div>
+            <div className="text-sm font-semibold tracking-wide text-slate-200">Channel Posts</div>
+            <div className="mt-1 text-xs text-slate-400">特定チャンネルの最新投稿ログ（/api/admin/channel-posts）</div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              className="h-10 w-56 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:border-indigo-300/50 focus:ring-2 focus:ring-indigo-300/20"
+              placeholder="channel_id (例: C0123456789)"
+              value={channelId}
+              onChange={(e) => setChannelId(e.target.value)}
+            />
+            <select
+              className="h-10 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-slate-100 outline-none"
+              value={postLimit}
+              onChange={(e) => setPostLimit(Number(e.target.value))}
+            >
+              <option value={20}>20件</option>
+              <option value={50}>50件</option>
+              <option value={100}>100件</option>
+              <option value={200}>200件</option>
+            </select>
+            <button
+              className="inline-flex h-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-slate-100 hover:bg-white/10 disabled:opacity-60"
+              onClick={() => void refreshPosts()}
+              disabled={postsLoading}
+            >
+              取得
+            </button>
+          </div>
+        </div>
+        <div className="border-t border-white/10 p-3">
+          {postsError ? <div className="p-3 text-sm text-red-200">{postsError}</div> : null}
+          {!channelId.trim() ? (
+            <div className="p-3 text-sm text-slate-400">チャンネルIDを入力して取得してください。</div>
+          ) : postsLoading ? (
+            <div className="p-3 text-sm text-slate-400">読み込み中…</div>
+          ) : posts.length === 0 ? (
+            <div className="p-3 text-sm text-slate-400">ログがありません。</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="text-xs text-slate-400">
+                  <tr className="border-b border-white/10">
+                    <th className="py-2 px-3 font-medium">記録時刻</th>
+                    <th className="py-2 px-3 font-medium">user</th>
+                    <th className="py-2 px-3 font-medium">subtype</th>
+                    <th className="py-2 px-3 font-medium">text</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {posts.map((p) => (
+                    <tr key={`${p.event_ts || p.ts}-${p.recorded_at || ''}`} className="border-b border-white/5 align-top">
+                      <td className="py-3 px-3 font-mono text-xs text-slate-300">{p.recorded_at || '—'}</td>
+                      <td className="py-3 px-3 font-mono text-xs text-slate-300">{p.user || '—'}</td>
+                      <td className="py-3 px-3 text-slate-300">{p.subtype || 'message'}</td>
+                      <td className="py-3 px-3 text-slate-100">{p.text || '（テキストなし）'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </section>
 

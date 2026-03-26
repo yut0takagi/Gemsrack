@@ -99,6 +99,7 @@ Slack の App 管理画面で以下を設定します。
 
 - **OAuth & Permissions**
   - Bot Token Scopes に最低限 `commands` と `chat:write` を付与
+  - 特定チャンネル投稿ログを取る場合は `channels:history` も付与
   - 画像生成Gemを使う場合は `files:write` と `im:write` も付与（DMに画像を送るため）
   - Install to Workspace を実行して `SLACK_BOT_TOKEN` を取得
 - **Basic Information**
@@ -107,6 +108,7 @@ Slack の App 管理画面で以下を設定します。
   - Enable Events を ON
   - Request URL を `https://<CloudRunのURL>/slack/events` に設定（末尾のパスまで必須）
   - Subscribe to bot events に例として `app_mention` を追加（`gemsrack/slack/events/app_mention.py`）
+  - 特定チャンネル投稿ログを取る場合は `message.channels` も追加（`gemsrack/slack/events/channel_posts.py`）
 - **Interactivity & Shortcuts**
   - Interactivity を ON
   - Request URL を `https://<CloudRunのURL>/slack/events` に設定（末尾のパスまで必須。モーダルの Save などで必須）
@@ -253,6 +255,22 @@ Gemの実行回数をKPIとして計測するため、実行時に日次カウ�
 - **集計API**: `GET /api/metrics/gem-usage?days=30&limit=20`
 - **保存先切替**: `GEM_METRICS_BACKEND`（`auto` / `firestore` / `memory` / `none`）
 
+## 特定チャンネル投稿ログ（Firestore）
+
+特定チャンネルの投稿を Firestore に記録できます。
+
+- 対象チャンネル: `SLACK_LOG_CHANNEL_IDS`（カンマ区切りで `C...` を指定）
+- 保存先切替: `CHANNEL_POST_STORE_BACKEND`（`auto` / `firestore` / `memory` / `none`）
+- Firestore パス: `workspaces/{team_id}/channel_posts/{channel_id}/messages/{event_ts}`
+- `SLACK_LOG_CHANNEL_IDS` が空なら、この機能は無効です（保存しません）
+
+例:
+
+```bash
+export SLACK_LOG_CHANNEL_IDS="C0123456789,C0987654321"
+export CHANNEL_POST_STORE_BACKEND="firestore"
+```
+
 ## Admin（Gem管理）
 
 Gemの **Slackでの実行可否（enable/disable）** や、より詳細な利用状況を見るために Admin API / UI を用意しています。
@@ -268,6 +286,7 @@ Gemの **Slackでの実行可否（enable/disable）** や、より詳細な利�
   - `GET /api/admin/gems`（Gem一覧 + enabled）
   - `PATCH /api/admin/gems/<name>`（`{"enabled": true/false}`）
   - `GET /api/admin/usage?days=30`
+  - `GET /api/admin/channel-posts?channel_id=C...&limit=50`（特定チャンネル投稿ログ）
   - `POST /api/admin/login` / `POST /api/admin/logout` / `GET /api/admin/me`
 
 ### Gemini API（AI Gem 実行）

@@ -507,6 +507,7 @@ def register(slack_app) -> None:  # noqa: ANN001
         def _run_and_notify() -> None:
             try:
                 store, store_err = _get_store()
+                metrics_store, _ = _get_metrics()
                 if store is None:
                     if channel_id and user_id:
                         client.chat_postEphemeral(

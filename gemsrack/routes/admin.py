@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from flask import Blueprint, Response, current_app, jsonify, request, session
 
+from ..channel_posts import ChannelPostStore
 from ..gems.store import GemStore, validate_gem_name
 from ..metrics.store import MetricsStore
 
@@ -36,6 +37,14 @@ def _metrics() -> MetricsStore:
     store = current_app.extensions.get("metrics_store")
     if store is None:
         err = current_app.extensions.get("metrics_store_error") or "Metrics store is not initialized"
+        raise RuntimeError(str(err))
+    return store  # type: ignore[return-value]
+
+
+def _channel_posts() -> ChannelPostStore:
+    store = current_app.extensions.get("channel_post_store")
+    if store is None:
+        err = current_app.extensions.get("channel_post_store_error") or "Channel post store is not initialized"
         raise RuntimeError(str(err))
     return store  # type: ignore[return-value]
 
@@ -139,6 +148,42 @@ def admin_usage() -> Response:
                 }
                 for r in daily
             ],
+        }
+    )
+
+
+@admin_bp.get("/channel-posts")
+def admin_channel_posts() -> Response:
+    err = _require_admin()
+    if err is not None:
+        return err
+    team_id = _team_id()
+    channel_id = (request.args.get("channel_id") or "").strip()
+    if not channel_id:
+        return jsonify({"error": "channel_id is required"}), 400
+
+    limit_raw = (request.args.get("limit") or "").strip()
+    try:
+        limit = int(limit_raw) if limit_raw else 50
+    except Exception:
+        limit = 50
+    limit = max(1, min(limit, 200))
+
+    try:
+        cstore = _channel_posts()
+    except Exception as e:
+        msg = str(e) or type(e).__name__
+        resp = jsonify({"error": "channel_post_store_unavailable", "message": msg})
+        resp.status_code = 503
+        return resp
+
+    posts = cstore.list_posts(team_id=team_id, channel_id=channel_id, limit=limit)
+    return jsonify(
+        {
+            "team_id": team_id,
+            "channel_id": channel_id,
+            "count": len(posts),
+            "posts": posts,
         }
     )
 

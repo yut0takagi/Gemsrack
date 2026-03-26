@@ -139,6 +139,22 @@ export type AdminUsageResponse = {
   }>
 }
 
+export type AdminChannelPostsResponse = {
+  team_id: string
+  channel_id: string
+  count: number
+  posts: Array<{
+    recorded_at: string | null
+    event_ts: string
+    ts: string
+    channel_id: string
+    user: string
+    subtype: string
+    text: string
+    event: Record<string, unknown>
+  }>
+}
+
 export async function adminMe(opts?: { signal?: AbortSignal }): Promise<{ admin: boolean; enabled: boolean }> {
   return await fetchJson<{ admin: boolean; enabled: boolean }>(`/api/admin/me`, { signal: opts?.signal })
 }
@@ -189,5 +205,19 @@ export async function adminGetUsage(opts: {
 }): Promise<AdminUsageResponse> {
   const query = buildQuery({ team_id: opts.teamId, days: opts.days ?? 30 })
   return await fetchJson<AdminUsageResponse>(`/api/admin/usage${query}`, { signal: opts.signal })
+}
+
+export async function adminGetChannelPosts(opts: {
+  channelId: string
+  teamId?: string
+  limit?: number
+  signal?: AbortSignal
+}): Promise<AdminChannelPostsResponse> {
+  const query = buildQuery({
+    channel_id: opts.channelId,
+    team_id: opts.teamId,
+    limit: opts.limit ?? 50,
+  })
+  return await fetchJson<AdminChannelPostsResponse>(`/api/admin/channel-posts${query}`, { signal: opts.signal })
 }
 

@@ -4,6 +4,7 @@ import os
 
 from flask import Flask
 
+from .channel_posts import NoopChannelPostStore, build_channel_post_store
 from .config import Settings, load_settings
 from .gems.store import build_store
 from .metrics import build_metrics_store
@@ -47,6 +48,19 @@ def create_app(settings: Settings | None = None) -> Flask:
     except Exception as e:
         app.extensions["metrics_store"] = None
         app.extensions["metrics_store_error"] = f"{type(e).__name__}: {str(e) or type(e).__name__}"
+
+    # Channel post store（特定チャンネル投稿ログ用）
+    if settings.slack_log_channel_ids:
+        try:
+            cstore = build_channel_post_store()
+            app.extensions["channel_post_store"] = cstore
+            app.extensions["channel_post_store_error"] = None
+        except Exception as e:
+            app.extensions["channel_post_store"] = None
+            app.extensions["channel_post_store_error"] = f"{type(e).__name__}: {str(e) or type(e).__name__}"
+    else:
+        app.extensions["channel_post_store"] = NoopChannelPostStore()
+        app.extensions["channel_post_store_error"] = None
 
     slack: SlackBuildResult = build_slack(settings)
     app.extensions["slack_handler"] = slack.handler
