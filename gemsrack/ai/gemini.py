@@ -91,7 +91,7 @@ class GeminiClient:
                 }
             ],
             "generationConfig": {
-                "responseModalities": ["TEXT", "IMAGE"],
+                "responseModalities": ["IMAGE"],
                 "imageConfig": {"aspectRatio": aspect_ratio},
             },
         }
